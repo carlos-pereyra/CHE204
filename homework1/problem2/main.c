@@ -1,12 +1,11 @@
 #include <cstdlib>
 #include <cstdio>
 #include <omp.h>
-//#include <mkl.h> // not installed currently
 #include <vector>
 #include <algorithm>
-#include <iostream> // std
-#include <iomanip>  // setw
-#include <fstream>  // fopen
+#include <iostream> 
+#include <iomanip>
+#include <fstream>  
 // compile this code with,
 //
 //      g++ -Xpreprocessor -fopenmp -lomp -o test main.c
@@ -91,10 +90,10 @@ int main(int argc, char** argv) {
     // always works in 3D
     const long natoms = 3;
     const long ndim = 3;
-    const long ninter = natoms*(natoms-1)/2; // determine unique interaction count
+    const long ninter = natoms*(natoms-1)/2; 
     printf("there's n interactions = %ld\n\n", ninter);
     // create vectors
-    ManyIons *mi = (ManyIons *) malloc((long)sizeof(ManyIons)*natoms); // 2D
+    ManyIons *mi = (ManyIons *) malloc((long)sizeof(ManyIons)*natoms);
     // fill manyion attribute memory
     for(int i=0; i<natoms; i++) {
         mi[i].r = (float*) malloc((long)sizeof(float)*ndim);
@@ -166,17 +165,17 @@ int main(int argc, char** argv) {
         }
         start = 0;
         end = n; // skip value along diagonal
-        MorseForce(start, end, dx, dr, fx);     // list of exch. forces for ai
+        MorseForce(start, end, dx, dr, fx); // list of exch. forces for ai
         MorseForce(start, end, dy, dr, fy);
         MorseForce(start, end, dz, dr, fz);
-        MorsePotential(start, end, dr, ep);   // list of exch. potentials for ai
+        MorsePotential(start, end, dr, ep); // list of exch. potentials for ai
        
-        fi[0] = VectorSum(natoms, fx);          // total x force on ai from aj
-        fi[1] = VectorSum(natoms, fy);          // total y force on ai from aj
-        fi[2] = VectorSum(natoms, fz);          // total z force on ai from aj
-        mi[i].ep = VectorSum(natoms, ep);       // total potential on ai from aj
+        fi[0] = VectorSum(natoms, fx);      // total x force on ai from aj
+        fi[1] = VectorSum(natoms, fy);      // total y force on ai from aj
+        fi[2] = VectorSum(natoms, fz);      // total z force on ai from aj
+        mi[i].ep = VectorSum(natoms, ep);   // total potential on ai from aj
 
-        global_ep += mi[i].ep;                  // total ensemble energy
+        global_ep += mi[i].ep;              // total ensemble energy
         printf("\n");
     }
 
