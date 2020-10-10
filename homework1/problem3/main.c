@@ -10,6 +10,12 @@
 //
 //      g++ -Xpreprocessor -fopenmp -lomp -o test main.c
 //
+//      ./test [npoints-has to be odd]
+//
+//  example:
+//
+//      ./test 111
+
 
 using namespace std;
 
@@ -112,7 +118,7 @@ int main(int argc, char** argv) {
     const long ndim = 3;
     float xi = 1;
     float yi = 1;
-    float zi = 0;
+    float zi = 1;
     float xf = 2;
     float yf = 0;
     float zf = 0;
@@ -227,7 +233,7 @@ int main(int argc, char** argv) {
         fi[2] = VectorSum(natoms, fz);
         mi[1].ep = VectorSum(natoms, ep);
         
-        // fill force travelled array
+        // fill force and energy travelled array
         ftx[step] = fi[0];
         fty[step] = fi[1];
         ftz[step] = fi[2];
@@ -244,7 +250,7 @@ int main(int argc, char** argv) {
     float Wz = 0;
     for(int i=0; i<nbins; i++) { Wx = Wx + ( ftx[2*i] + 4*ftx[2*i+1] + ftx[2*i+2] ); }
     for(int j=0; j<nbins; j++) { Wy = Wy + ( fty[2*j] + 4*fty[2*j+1] + fty[2*j+2] ); }
-    for(int k=0; k<nbins; k++) { Wz = Wz + ( ftz[2*k] + 4*ftz[2*k+1] t+ ftz[2*k+2] ); }
+    for(int k=0; k<nbins; k++) { Wz = Wz + ( ftz[2*k] + 4*ftz[2*k+1] + ftz[2*k+2] ); }
     Wx = Wx * hx/3;
     Wy = Wy * hy/3;
     Wz = Wz * hz/3;

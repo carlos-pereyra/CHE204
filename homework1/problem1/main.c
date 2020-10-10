@@ -1,7 +1,6 @@
 #include <cstdlib>
 #include <cstdio>
 #include <omp.h>
-//#include <mkl.h> // not installed currently
 #include <vector>
 #include <algorithm>
 #include <iostream> // std
@@ -11,6 +10,7 @@
 //
 //      g++ -Xpreprocessor -fopenmp -lomp -o test main.c
 //
+//      ./test
 
 using namespace std;
 
@@ -23,7 +23,6 @@ float* VectorFill(const long n, float *v, float val);
 float* VectorSubtraction(const long n, float *v1, float *v2, float *vresult);
 void write2file(const long n, float *r, float *ep, float *dep, float *dep_fd, float *dep_bd, float *dep_cd, float *err_fd, float *err_bd, float *err_cd);
 
-//reference function to verify data
 float* MorsePotential(const long n, float *r, float *ep) {
     // this function computes the morse potential.
     //

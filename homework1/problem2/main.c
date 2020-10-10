@@ -10,6 +10,7 @@
 //
 //      g++ -Xpreprocessor -fopenmp -lomp -o test main.c
 //
+//      ./test
 
 using namespace std;
 
@@ -18,8 +19,6 @@ typedef struct list_struct {
     float *f;
     float ep;
 } ManyIons;
-
-
 
 float* MorsePotential(long s, long e, float *r, float *ep);
 float* MorseForce(long s, long e, float *dr, float *r, float *f);
@@ -45,8 +44,8 @@ float* MorseForce(long s, long e, float *dr, float *r, float *f) {
     // compute the force vector component (negative first derivative of the
     // morse potential).
     //
-    // function takes the difference between two vectors
-    // ri and rj both of length n.
+    // function takes the difference between two vectors dr,
+    // and magnitude of displacement r.
     //
     // return a list containing force vector component (ie. fx).
     float d = 2;
@@ -137,10 +136,10 @@ int main(int argc, char** argv) {
     float *dy    = (float *) malloc((long)sizeof(float)*ninter); // 1D
     float *dz    = (float *) malloc((long)sizeof(float)*ninter); // 1D
     float *dr    = (float *) malloc((long)sizeof(float)*ninter); // 1D
-  
     // perform computation
     const double t0 = omp_get_wtime();
-    for(int i=0; i<natoms; i++) { // compute exchange force atom by atom
+    // compute exchange force atom by atom
+    for(int i=0; i<natoms; i++) {
         ri = mi[i].r;
         fi = mi[i].f;
         epi = mi[i].ep;
@@ -178,7 +177,6 @@ int main(int argc, char** argv) {
         global_ep += mi[i].ep;              // total ensemble energy
         printf("\n");
     }
-
     // print results
     cout << left << setw(12) << "i";
     cout << left << setw(12) << "x";
@@ -207,7 +205,7 @@ int main(int argc, char** argv) {
         cout << left << mi[i].ep << "\n";
     }
     printf("\nsummary");
-    printf("\nep = %f \n", global_ep);
+    printf("\ntotal ep = %f \n", global_ep);
 
     // stop timer
     const double t1 = omp_get_wtime();
