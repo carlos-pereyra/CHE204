@@ -1,0 +1,3 @@
+#gnuplot -p plot.gp
+latex image.tex
+dvips -o fig.ps image.dvi
