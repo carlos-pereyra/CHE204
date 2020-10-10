@@ -32,8 +32,8 @@ int main(int argc, char** argv) {
     if(DBG) printf("upper limit = %f\n", M_PI/2);
     if(DBG) printf("lower limit = %f\n\n", -M_PI/2);
     // p'th order (mc steps loop)
-    for(p=1; p < 8; p++) {
-        n = pow(nstart, p/float(2));
+    for(p=0; p <= 5; p++) {
+        n = nstart * pow(10, p);
         s = 0;
         // monte carlo integration loop
         for(i=0; i<n; i++) {
@@ -62,16 +62,20 @@ float montecarlo_integration(long trials) {
 void write2file(const long n, float result, float mcresult) {
     string filename = "data/output.dat";
     ofstream outfile;
-    outfile.open(filename, std::fstream::out);
-    outfile << left << setw(12) << "# n";
-    outfile << left << setw(12) << "result";
-    outfile << left << "mc-result\n";
+    if (n==100) {
+        outfile.open(filename, std::fstream::out);
+        outfile << left << setw(12) << "# n";
+        outfile << left << setw(12) << "result";
+        outfile << left << "mc-result\n";
+    } else {
+        outfile.open(filename, std::fstream::app);
+    }
     // print values
     outfile << std::scientific;
     outfile.precision(4);
     outfile << left << setw(12) << n;
     outfile << left << setw(12) << result;
-    outfile << left << mcresult;
+    outfile << left << mcresult << "\n";
 
     outfile.close();
 }
