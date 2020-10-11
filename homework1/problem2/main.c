@@ -27,64 +27,6 @@ float* VectorSubtraction(const long n, float *v1, float *v2, float *vresult);
 float VectorSum(const long n, float *v);
 void write2file(const long n, ManyIons* );
 
-float* MorsePotential(long s, long e, float *r, float *ep) {
-    // this function computes the morse potential.
-    //
-    // return a list containing potential energy.
-    float d = 2;
-    float a = 1;
-    float ro = 1.2;
-    for(long i=s; i<e; i++){
-        ep[i] = d*pow((1 - exp(-a*(r[i]-ro))), 2);
-    }
-    return ep;
-}
-
-float* MorseForce(long s, long e, float *dr, float *r, float *f) {
-    // compute the force vector component (negative first derivative of the
-    // morse potential).
-    //
-    // function takes the difference between two vectors dr,
-    // and magnitude of displacement r.
-    //
-    // return a list containing force vector component (ie. fx).
-    float d = 2;
-    float a = 1;
-    float ro = 1.2;
-    for(long i=s; i<e; i++) {
-        f[i] = 2 * d * a * ( exp(-2*a*(r[i]-ro)) - exp(-a*(r[i]-ro)) ) * dr[i] / r[i];
-    }
-    return f;
-}
-
-float* VectorFill(const long n, float *v, float val) {
-    // fill vector with single value
-    // return filled vector
-    for(int i=0; i<=n; i++) {
-        v[i] = val;
-    }
-    return v;
-}
-
-float* VectorSubtraction(const long n, float *v1, float *v2, float *vresult) {
-    // subtract vector1 by vector2.
-    // return vresult
-    for(int i=0; i<=n; i++) {
-        vresult[i] = abs(v1[i] - v2[i]);
-    }
-    return vresult;
-}
-
-float VectorSum(const long n, float *v) {
-    // sum all elements in v
-    // return scalar sum
-    float sum = 0;
-    for(int i=0; i<n; i++) {
-        sum += v[i];
-    }
-    return sum;
-}
-
 int main(int argc, char** argv) {
     // always works in 3D
     const long natoms = 3;
@@ -228,4 +170,62 @@ int main(int argc, char** argv) {
     free(dz);
     free(dr);
   
+}
+
+float* MorsePotential(long s, long e, float *r, float *ep) {
+    // this function computes the morse potential.
+    //
+    // return a list containing potential energy.
+    float d = 2;
+    float a = 1;
+    float ro = 1.2;
+    for(long i=s; i<e; i++){
+        ep[i] = d*pow((1 - exp(-a*(r[i]-ro))), 2);
+    }
+    return ep;
+}
+
+float* MorseForce(long s, long e, float *dr, float *r, float *f) {
+    // compute the force vector component (negative first derivative of the
+    // morse potential).
+    //
+    // function takes the difference between two vectors dr,
+    // and magnitude of displacement r.
+    //
+    // return a list containing force vector component (ie. fx).
+    float d = 2;
+    float a = 1;
+    float ro = 1.2;
+    for(long i=s; i<e; i++) {
+        f[i] = 2 * d * a * ( exp(-2*a*(r[i]-ro)) - exp(-a*(r[i]-ro)) ) * dr[i] / r[i];
+    }
+    return f;
+}
+
+float* VectorFill(const long n, float *v, float val) {
+    // fill vector with single value
+    // return filled vector
+    for(int i=0; i<=n; i++) {
+        v[i] = val;
+    }
+    return v;
+}
+
+float* VectorSubtraction(const long n, float *v1, float *v2, float *vresult) {
+    // subtract vector1 by vector2.
+    // return vresult
+    for(int i=0; i<=n; i++) {
+        vresult[i] = abs(v1[i] - v2[i]);
+    }
+    return vresult;
+}
+
+float VectorSum(const long n, float *v) {
+    // sum all elements in v
+    // return scalar sum
+    float sum = 0;
+    for(int i=0; i<n; i++) {
+        sum += v[i];
+    }
+    return sum;
 }
