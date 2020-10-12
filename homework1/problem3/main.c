@@ -131,10 +131,8 @@ int main(int argc, char** argv) {
             VectorFill(natoms, ep, 0);
 
             // compute exchange force on atom2 (loop through atomj)
-            // i wanted to vectorize the dx, ..., dr loop but not enough time.
             for(j=i+1; j<natoms; j++) {
                 // ignore atom 2
-                //if(j==1) continue;
                 rj = mi[j].r;
                 fj = mi[j].f;
 
@@ -143,7 +141,6 @@ int main(int argc, char** argv) {
                 dy[j] = ri[1] - rj[1];
                 dz[j] = ri[2] - rj[2];
                 dr[j] = sqrt(pow(dx[j],2) + pow(dy[j],2) + pow(dz[j],2));
-                //printf("%ld->%ld dx = %f dy = %f dz = %f dr = %f\n", i, j, dx[j], dy[j], dz[j], dr[j]);
             }
        
             // compute all interaction forces on ai from aj
