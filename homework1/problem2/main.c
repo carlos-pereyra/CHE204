@@ -17,11 +17,15 @@ using namespace std;
 typedef struct list_struct {
     float *r; // r[0], r[1], r[2] represent x,y,z respectively
     float *f;
+    float **fx;
+    float **fy;
+    float **fz;
     float ep;
 } ManyIons;
 
 float* MorsePotential(long s, long e, float *r, float *ep);
-float* MorseForce(long s, long e, float *dr, float *r, float *f);
+float* MorseForce(long s, long e, float *dr, float *r, float *f, float **);
+float** MatrixFill(const long n, const long m, float **mat, float val);
 float* VectorFill(const long n, float *v, float val);
 float* VectorSubtraction(const long n, float *v1, float *v2, float *vresult);
 float VectorSum(const long n, float *v);
@@ -29,14 +33,15 @@ void write2file(const long n, ManyIons* );
 
 int main(int argc, char** argv) {
     // always works in 3D
-    const long natoms = 3;
-    const long ndim = 3;
-    const long ninter = natoms*(natoms-1)/2; 
+    const long natoms = 3; const long ndim = 3;
+    const long ninter = natoms*(natoms-1)/2;
+    long i, j; 
     printf("there's n interactions = %ld\n\n", ninter);
     // create vectors
     ManyIons *mi = (ManyIons *) malloc((long)sizeof(ManyIons)*natoms);
-    // fill manyion attribute memory
-    for(int i=0; i<natoms; i++) {
+    ManyIons mat;
+    // initialize manyion list
+    for(i=0; i<natoms; i++) {
         mi[i].r = (float*) malloc((long)sizeof(float)*ndim);
         mi[i].f = (float*) malloc((long)sizeof(float)*ndim);
         if(i==0) {
@@ -58,11 +63,18 @@ int main(int argc, char** argv) {
             mi[2].r[2] = 0;
         }
     }
+    // initialize force matrix
+    mat.fx = (float**) malloc(sizeof(float*)*natoms);
+    mat.fy = (float**) malloc(sizeof(float*)*natoms);
+    mat.fz = (float**) malloc(sizeof(float*)*natoms);
+    for(j = 0; j<natoms; j++) {mat.fx[j] = (float*) malloc(sizeof(float)*natoms);}
+    for(j = 0; j<natoms; j++) {mat.fy[j] = (float*) malloc(sizeof(float)*natoms);}
+    for(j = 0; j<natoms; j++) {mat.fz[j] = (float*) malloc(sizeof(float)*natoms);}
+    MatrixFill(natoms, natoms, mat.fx, 0);
+    MatrixFill(natoms, natoms, mat.fy, 0);
+    MatrixFill(natoms, natoms, mat.fz, 0);
     // total system energy
     float global_ep = 0;
-    long start = 0;
-    long end = 0;
-    long n = 0;
     // selected atom attributes
     float *ri    = NULL;
     float *rj    = NULL;
@@ -81,7 +93,7 @@ int main(int argc, char** argv) {
     // perform computation
     const double t0 = omp_get_wtime();
     // compute exchange force atom by atom
-    for(int i=0; i<natoms; i++) {
+    for(i=0; i<natoms; i++) {
         ri = mi[i].r;
         fi = mi[i].f;
         epi = mi[i].ep;
@@ -90,30 +102,31 @@ int main(int argc, char** argv) {
         VectorFill(natoms, dy, 0);
         VectorFill(natoms, dz, 0);
         VectorFill(natoms, dr, 0);
+        VectorFill(natoms, fx, 0);
+        VectorFill(natoms, fy, 0);
+        VectorFill(natoms, fz, 0);
+        VectorFill(natoms, ep, 0);
         //
-        n = 0;
-        for(int j=0; j<natoms; j++) {
-            if(i==j) continue;
+        for(j=i+1; j<natoms; j++) {
             rj = mi[j].r;
             fj = mi[j].f;
             // fill vector of displacements between ai and aj
-            dx[n] = ri[0] - rj[0];
-            dy[n] = ri[1] - rj[1];
-            dz[n] = ri[2] - rj[2];
-            dr[n] = sqrt(pow(dx[n],2) + pow(dy[n],2) + pow(dz[n],2));
-            printf("interaction = %d dx = %f dy = %f dz = %f dr = %f\n", j, dx[n], dy[n], dz[n], dr[n]);
-            n++;
+            dx[j] = ri[0] - rj[0];
+            dy[j] = ri[1] - rj[1];
+            dz[j] = ri[2] - rj[2];
+            dr[j] = sqrt(pow(dx[j],2) + pow(dy[j],2) + pow(dz[j],2));
+            printf("%ld -> %ld dx = %f dy = %f dz = %f dr = %f\n", i, j, dx[j], dy[j], dz[j], dr[j]);
         }
-        start = 0;
-        end = n; // skip value along diagonal
-        MorseForce(start, end, dx, dr, fx); // list of exch. forces for ai
-        MorseForce(start, end, dy, dr, fy);
-        MorseForce(start, end, dz, dr, fz);
-        MorsePotential(start, end, dr, ep); // list of exch. potentials for ai
+        // compute all interaction forces on ai from aj
+        MorseForce(i+1, natoms, dx, dr, fx, mat.fx);
+        MorseForce(i+1, natoms, dy, dr, fy, mat.fy);
+        MorseForce(i+1, natoms, dz, dr, fz, mat.fz);
+        // compute all interaction energy on ai from aj
+        MorsePotential(i+1, natoms, dr, ep);
        
-        fi[0] = VectorSum(natoms, fx);      // total x force on ai from aj
-        fi[1] = VectorSum(natoms, fy);      // total y force on ai from aj
-        fi[2] = VectorSum(natoms, fz);      // total z force on ai from aj
+        mi[i].f[0] = VectorSum(natoms, fx);    // total x force on ai from aj
+        mi[i].f[1] = VectorSum(natoms, fy);    // total y force on ai from aj
+        mi[i].f[2] = VectorSum(natoms, fz);    // total z force on ai from aj
         mi[i].ep = VectorSum(natoms, ep);   // total potential on ai from aj
 
         global_ep += mi[i].ep;              // total ensemble energy
@@ -141,9 +154,9 @@ int main(int argc, char** argv) {
         cout << left << setw(12) << x;
         cout << left << setw(12) << y;
         cout << left << setw(12) << z;
-        cout << left << setw(12) << fx;
-        cout << left << setw(12) << fy;
-        cout << left << setw(12) << fz;
+        cout << left << setw(12) << mat.fx[i][i];
+        cout << left << setw(12) << mat.fy[i][i];
+        cout << left << setw(12) << mat.fz[i][i];
         cout << left << mi[i].ep << "\n";
     }
     printf("\nsummary");
@@ -159,8 +172,14 @@ int main(int argc, char** argv) {
     for(int i=0; i<natoms; i++) {
         free(mi[i].r);
         free(mi[i].f);
+        free(mat.fx[i]);
+        free(mat.fy[i]);
+        free(mat.fz[i]);
     }
     free(mi);
+    free(mat.fx);
+    free(mat.fy);
+    free(mat.fz);
     free(ep);
     free(fx);
     free(fy);
@@ -181,11 +200,12 @@ float* MorsePotential(long s, long e, float *r, float *ep) {
     float ro = 1.2;
     for(long i=s; i<e; i++){
         ep[i] = d*pow((1 - exp(-a*(r[i]-ro))), 2);
+            printf("%ld -> %ld dr = %f ep = %f\n", s, i, r[i], ep[i]);
     }
     return ep;
 }
 
-float* MorseForce(long s, long e, float *dr, float *r, float *f) {
+float* MorseForce(long s, long e, float *dr, float *r, float *f, float **matf) {
     // compute the force vector component (negative first derivative of the
     // morse potential).
     //
@@ -198,8 +218,22 @@ float* MorseForce(long s, long e, float *dr, float *r, float *f) {
     float ro = 1.2;
     for(long i=s; i<e; i++) {
         f[i] = 2 * d * a * ( exp(-2*a*(r[i]-ro)) - exp(-a*(r[i]-ro)) ) * dr[i] / r[i];
+        matf[s-1][s-1] += f[i];
+        matf[i][i] -= f[i];
     }
     return f;
+}
+
+float** MatrixFill(const long n, const long m, float **mat, float val) {
+    // fill nxn matrix
+    // return filled vector
+    if(n!=m) printf("\n n is not equal to m! error..");
+    for(int i=0; i<n; i++) {
+        for(int j=0; j<n; j++) {
+            mat[i][j] = val;
+        }
+    }
+    return mat;
 }
 
 float* VectorFill(const long n, float *v, float val) {
