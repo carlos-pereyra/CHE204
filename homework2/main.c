@@ -7,14 +7,16 @@
 #include <iomanip>    // c++
 #include <fstream>    // c++
 #include <math.h>
+
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
 #else
 #include <cblas.h>
 #endif
-// compile this code with,
+
+// (on OS X) compile this code with,
 //
-//      g++ -Xpreprocessor -fopenmp -lomp -o test main.c
+//      g++ -Xpreprocessor -fopenmp -lomp -framework Accelerate -o test main.c
 //
 //      ./test
 //
@@ -24,44 +26,107 @@
 using namespace std;
 
 float* readInput(string filename, long nlines, float *mat);
-float* setSMatrix(long n, long m, float sxy, float syz, float szy);
-float* setXLatticePosition(long n, float *x, float dx);
-float* setYLatticePosition(long n, float *y, float dy);
-float* setZLatticePosition(long n, float *z, float dz);
+float* ClearVectorMatrix(long n, long m, float* vec);
+float* setSMatrix(long n, long m, float sxy, float syz, float szy); // ignore
+float* setXLatticePosition(long n, float *x, float dx);             // ignore
+float* setYLatticePosition(long n, float *y, float dy);             // ignore
+float* setZLatticePosition(long n, float *z, float dz);             // ignore
+
+// IO
+void PrintMatrix(const long n, const long m, float *);
 void Coords2XYZFile(const long n, float result, float mcresult);
 
+// PHYSICS
+float* MorsePotential(long s, long e, float *r, float *ep);
+float* ComputeDX(long natoms, float *xyzmat, float *dxmat);
+float* ComputeDY(long natoms, float *xyzmat, float *dymat);
+float* ComputeDZ(long natoms, float *xyzmat, float *dzmat);
+float* ComputeDR(long natoms, float *xyzmat, float *drmat);
+float* ComputeMorseForceX(long natoms, float *dx, float *dr, float *fx);
+float* ComputeMorseForceY(long natoms, float *dy, float *dr, float *fy);
+float* ComputeMorseForceZ(long natoms, float *dz, float *dr, float *fz);
+
 int main(int argc, char** argv) {
-    long natoms = 30; long ndim = 3;
+    long natoms = 3; long ndim = 3; // make sure natoms matches the number of atoms in .xyz file
     // initialize
-    float *xyzmat = new float(natoms*ndim);
-    float *xvec = new float(natoms);
-    float *yvec = new float(natoms);
-    float *zvec = new float(natoms);
-    // begin
-    readInput("ConfigurationMod.xyz", natoms, xyzmat);
-    // matrix multiply
+    float *xyzmat = (float *) malloc(sizeof(float)*natoms*ndim);    // size (natom by 3)
+    
+    float *dxmat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
+    float *dymat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
+    float *dzmat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
+    float *drmat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
+   
+    float *fxmat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
+    float *fymat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
+    float *fzmat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
+    // read xyz positions
+    readInput("coordinates/Test.xyz", natoms, xyzmat);
+    printf("XYZ__\n"); PrintMatrix(natoms, 3, xyzmat);
+    //readInput("coordinates/Configuration.xyz", natoms, xyzmat);
+    // clear all forces
+    ClearVectorMatrix(natoms, natoms, fxmat);
+    ClearVectorMatrix(natoms, natoms, fymat);
+    ClearVectorMatrix(natoms, natoms, fzmat);
+    // compute dx, dy, dz, dr
+    ComputeDX(natoms, xyzmat, dxmat);
+    ComputeDY(natoms, xyzmat, dymat);
+    ComputeDZ(natoms, xyzmat, dzmat);
+    ComputeDR(natoms, xyzmat, drmat);
+    // compute fx, fy, fz jacobian matrices (diagonal elements are atom forces)
+    ComputeMorseForceX(natoms, dxmat, drmat, fxmat);
+    ComputeMorseForceY(natoms, dymat, drmat, fymat);
+    ComputeMorseForceZ(natoms, dzmat, drmat, fzmat);
+    printf("FX__\n"); PrintMatrix(natoms, natoms, fxmat);
+    printf("FY__\n"); PrintMatrix(natoms, natoms, fymat);
+    printf("FZ__\n"); PrintMatrix(natoms, natoms, fzmat);
 
     // clean
-    free(xyzmat); free(xvec); free(yvec); free(zvec);
+    free(xyzmat); free(dxmat); free(dymat); free(dzmat); free(drmat); 
+    free(fxmat); free(fymat); free(fzmat);
 }
 
+// ========// ========// ========// ========// =============
+
 float* readInput(string filename, long nlines, float *mat) {
-    // read in positions from xyz file format
+    // read in positions from .xyz file
     ifstream infile(filename);
-    string line, elem;
+    string elem, line;
     float x, y, z;
-    long counter;
-    if(!infile.is_open()) abort();
+    long counter, natoms;
+    
+    if(!infile.is_open()) exit(1);
+    
     counter=0;
-    //while(getline(infile, line, '\n')) {
-    while(counter < nlines) {
-        infile >> elem >> x >> y >> z;
-        cout << counter << " elem = " << elem << " x = " << x << "\n";
+    std::getline(infile, line); std::istringstream iss(line); iss >> natoms; // line 1
+    std::cout << "natoms = " << natoms << "\n"; 
+    std::getline(infile, line);  // line 2
+    while(std::getline(infile, line) || counter<nlines) {
+        // read x y z coords
+        std::istringstream iss(line);
+
+        if (iss >> elem >> x >> y >> z) cout << counter << " elem = " << elem << " x = " << x << " y = " << y << " z " << z << "\n";
+
+        mat[3*counter] = x;
+        mat[3*counter+1] = y;
+        mat[3*counter+2] = z;
+
         counter++;
-        //printf("elem = %s x = %f y = %f z = %f\n", elem.c_str(), x, y, z);
     }
     infile.close();
     return mat;
+}
+
+float* ClearVectorMatrix(long n, long m, float *vec) {
+    if(__APPLE__) {
+        catlas_sset(n, 0, vec, 1);
+    } else {
+        for(long i = 0; i < n; i++) {
+            for(long j = 0; j < m; j++) {
+                vec[i*n + j] = 0;
+            }
+        }
+    }
+    return vec;
 }
 
 float* setXLatticePosition(long n, float *x, float dx) {
@@ -121,12 +186,27 @@ float* setZLatticePosition(long n, float *z, float dz) {
     return z;
 }
 
+// IO
+void PrintMatrix(const long n, const long m, float *mat) {
+    // print matrix
+    for(long i = 0; i < n; i++) {
+        for(long j = 0; j < m; j++) {
+            cout << std::scientific;
+            cout.precision(2);
+            cout << setw(8) << mat[i*n + j] << "\t";
+        }
+        cout << "\n";
+    }
+}
+
 int Coords2XYZFile(long n, float *x, float *y, float *z, int index) {
     // write coordinates to xyz file
     string filename_xyz = "data/output.xyz";
     ofstream myfile;
-    long i; 
+    long i;
+    // open new file 
     if (index == 0) myfile.open(filename_xyz, std::fstream::out);
+    // append to file
     else myfile.open(filename_xyz, std::fstream::app);
 
     myfile << n << "\n";
@@ -140,4 +220,154 @@ int Coords2XYZFile(long n, float *x, float *y, float *z, int index) {
     }
     myfile.close();
     return 1;
+}
+
+// PHYSICS
+
+float* MorsePotential(long s, long e, float *r, float *ep) {
+    // this function computes the morse potential.
+    //
+    // return a list containing potential energy.
+    float d = 2;
+    float a = 1;
+    float ro = 1.2;
+    for(long i=s; i<e; i++){
+        ep[i] = d*pow((1 - exp(-a*(r[i]-ro))), 2);
+            printf("%ld -> %ld dr = %f ep = %f\n", s, i, r[i], ep[i]);
+    }
+    return ep;
+}
+
+// SEPARATION DISTANCES
+
+float* ComputeDX(long natoms, float *xyzmat, float *dxmat) {
+    // provide natoms for the shape of the following matrices:
+    //      - access (natoms x 3) xyzmat matrix
+    //      - access (natoms x natoms) xyzmat
+    // return dxmat
+    for(long i=0; i<natoms; i++) {
+        for(long j=i+1; j<natoms; j++) {
+            dxmat[natoms*i + j] = xyzmat[3*i] - xyzmat[3*j];
+        }
+    }
+    return dxmat;
+}
+
+float* ComputeDY(long natoms, float *xyzmat, float *dymat) {
+    // provide natoms for the shape of the following matrices:
+    //      - access (natoms x 3) xyzmat matrix
+    //      - access (natoms x natoms) dxmat
+    // return dymat
+    for(long i=0; i<natoms; i++) {
+        for(long j=i+1; j<natoms; j++) {
+            dymat[natoms*i + j] = xyzmat[3*i + 1] - xyzmat[3*j + 1];
+        }
+    }
+    return dymat;
+}
+
+float* ComputeDZ(long natoms, float *xyzmat, float *dzmat) {
+    // provide natoms for the shape of the following matrices:
+    //      - access (natoms x 3) xyzmat matrix
+    //      - access (natoms x natoms) dxmat
+    // return dzmat
+    for(long i=0; i<natoms; i++) {
+        for(long j=i+1; j<natoms; j++) {
+            dzmat[natoms*i + j] = xyzmat[3*i + 2] - xyzmat[3*j + 2];
+        }
+    }
+    return dzmat;
+}
+
+float* ComputeDR(long natoms, float *xyzmat, float *drmat) {
+    // provide natoms for the shape of the following matrices:
+    //      - access (natoms x 3) xyzmat matrix
+    //      - access (natoms x natoms) dxmat
+    // return drmat
+    for(long i=0; i<natoms; i++) {
+        for(long j=i+1; j<natoms; j++) {
+            float dx = xyzmat[3*i] - xyzmat[3*j];
+            float dy = xyzmat[3*i+1] - xyzmat[3*j+1];
+            float dz = xyzmat[3*i+2] - xyzmat[3*j+2];
+            drmat[natoms*i + j] = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
+        }
+    }
+    return drmat;
+}
+
+// FORCE CALCULATIONS
+
+float* ComputeMorseForceX(long natoms, float *dx, float *dr, float *fx) {
+    // provide natoms for the shape of the following matrices:
+    //      - dx matrix size (natoms x natoms)
+    //      - dr matrix size (natoms x natoms)
+    //      - fx matrix size (natoms x natoms)
+    // return fx
+    float d = 2; float a = 1; float ro = 1.2; float val = 0;
+    long i, j;
+    // upper diagonal forces in matrix
+    for(i = 0; i < natoms; i++) {
+        for(j = i + 1; j < natoms; j++) {
+            val = 2*d*a * ( exp(-2*a*(dr[i*natoms + j]-ro)) - exp(-a*(dr[i*natoms + j]-ro)) ) * dx[i*natoms + j] / dr[i*natoms + j];
+            fx[i*natoms + j] = val; 
+            fx[j*(natoms + 1)] -= val;
+        }
+    }
+    // diagonal forces in matrix
+    for(long i = 0; i < natoms; i++) {
+        for(long j = i+1; j < natoms; j++) {
+            fx[i*(natoms + 1)] += fx[i*natoms + j];
+        }
+    }
+    return fx;
+}
+
+float* ComputeMorseForceY(long natoms, float *dy, float *dr, float *fy) {
+    // provide natoms for the shape of the following matrices:
+    //      - dy matrix size (natoms x natoms)
+    //      - dr matrix size (natoms x natoms)
+    //      - fx matrix size (natoms x natoms)
+    // return fy matrix
+    float d = 2; float a = 1; float ro = 1.2; float val = 0;
+    long i, j;
+    // upper diagonal forces in matrix
+    for(i = 0; i < natoms; i++) {
+        for(j = i + 1; j < natoms; j++) {
+            val = 2*d*a * ( exp(-2*a*(dr[i*natoms + j]-ro)) - exp(-a*(dr[i*natoms + j]-ro)) ) * dy[i*natoms + j] / dr[i*natoms + j];
+            fy[i*natoms + j] = val;
+            fy[j*(natoms + 1)] -= val;
+        }
+    }
+    // diagonal forces in matrix
+    for(long i = 0; i < natoms; i++) {
+        for(long j = i+1; j < natoms; j++) {
+            fy[i*(natoms + 1)] += fy[i*natoms + j];
+        }
+    }
+    return fy;
+}
+
+float* ComputeMorseForceZ(long natoms, float *dz, float *dr, float *fz) {
+    // provide natoms for the shape of the following matrices:
+    //      - dz matrix size (natoms x natoms)
+    //      - dr matrix size (natoms x natoms)
+    //      - fz matrix size (natoms x natoms)
+    // return fz matrix
+    float d = 2; float a = 1; float ro = 1.2; float val = 0;
+    long i, j;
+    // upper diagonal forces in matrix
+    for(i = 0; i < natoms; i++) {
+        for(j = i + 1; j < natoms; j++) {
+            val = 2*d*a * ( exp(-2*a*(dr[i*natoms + j]-ro)) - exp(-a*(dr[i*natoms + j]-ro)) ) * dz[i*natoms + j] / dr[i*natoms + j];
+            fz[i*natoms + j] = val;
+            fz[j*(natoms + 1)] -= val;
+        }
+    }
+    // diagonal forces in matrix
+    for(long i = 0; i < natoms; i++) {
+        for(long j = i+1; j < natoms; j++) {
+            fz[i*(natoms + 1)] += fz[i*natoms + j];
+        }
+    }
+    return fz;
 }
