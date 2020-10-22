@@ -8,6 +8,7 @@
 #include <fstream>    // c++
 #include <math.h>
 #include <mpi.h>
+#include "MersenneTwister.h"
 
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
@@ -17,7 +18,7 @@
 
 // (on OS X) compile this code with,
 //
-//      g++ -Xpreprocessor -fopenmp -lomp -framework Accelerate -o test main.c
+//      g++ -Xpreprocessor -fopenmp -lomp -framework Accelerate -o test main.cpp
 //
 //      ./test
 //
@@ -30,6 +31,12 @@ float* readInput(string filename, long nlines, float *mat);
 float* ClearMatrix(long n, long m, float* mat);
 float* SetMatrixElement(long n, long m, float *mat, long index, long value);
 int GetAbsMaxElementIndex(long n, long m, float* mat, long skip);
+
+// GDA RELATED
+float* SetInitialGuessPositions(long n, long m, MTRand *, float* xyz, float* newxyz);
+float* ComputeGammaX(long n, long m, float* xyzmat, float* xyzmat0, float* gamma);
+float* MatrixCopy(long n, long m, float* x, float* y);
+float* VectorExtraction(long n, long m, float*, long, float*);
 // EXTRA
 float* setSMatrix(long n, long m, float sxy, float syz, float szy); // ignore
 float* setXLatticePosition(long n, float *x, float dx);             // ignore
@@ -51,69 +58,169 @@ float* ComputeMorseForceX(long natoms, float *dx, float *dr, float *fx);
 float* ComputeMorseForceY(long natoms, float *dy, float *dr, float *fy);
 float* ComputeMorseForceZ(long natoms, float *dz, float *dr, float *fz);
 
+float* ComputeGamma(long n, long m, float* xyzmat, float* xyzmat0, float* gamma);
+float* ComputeGammaVec(long n, float* r, float* r0, float* fr, float* fr0, float* gamma);
+
 int main(int argc, char** argv) {
     // setup and initialization
-    long natoms = 32; long ndim = 3; // make sure natoms matches the number of atoms in .xyz file
+    long natoms = 3; long ndim = 3; // make sure natoms matches the number of atoms in .xyz file
+    long numruns = 1;
     // coords
-    float *xyzmat = (float *) malloc(sizeof(float)*natoms*ndim);    // size (natom by 3)
-    // pair distance
-    float *dxmat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
-    float *dymat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
-    float *dzmat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
-    float *drmat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
-    // jacobian force matrix 
-    float *fxmat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
-    float *fymat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
-    float *fzmat = (float *) malloc(sizeof(float)*natoms*natoms);   // size (natom by natom)
+    float *xyz0mat = (float *) malloc(sizeof(float)*natoms*ndim);   // size (natom by ndim)
+    float *xyz1mat = (float *) malloc(sizeof(float)*natoms*ndim);   // size (natom by ndim)
+    // MATRIX
+    //
+    //& pair distance
+    float *dx0mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *dy0mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *dz0mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *dr0mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *dx1mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *dy1mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *dz1mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *dr1mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    //& jacobian force matrix 
+    float *fx0mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *fy0mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *fz0mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *fx1mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *fy1mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    float *fz1mat = (float *) malloc(sizeof(float)*natoms*natoms);  // size (natom by natom)
+    // VECTORS
+    //
+    //& position
+    float *x0vec = (float *) malloc(sizeof(float)*natoms);          // size (natom by 1)
+    float *y0vec = (float *) malloc(sizeof(float)*natoms);          // size (natom by 1)
+    float *z0vec = (float *) malloc(sizeof(float)*natoms);          // size (natom by 1)
+    float *x1vec = (float *) malloc(sizeof(float)*natoms);          // size (natom by 1)
+    float *y1vec = (float *) malloc(sizeof(float)*natoms);          // size (natom by 1)
+    float *z1vec = (float *) malloc(sizeof(float)*natoms);          // size (natom by 1)
+    //& forces
+    float *fx0vec = (float *) malloc(sizeof(float)*natoms);         // size (natom by 1)
+    float *fy0vec = (float *) malloc(sizeof(float)*natoms);         // size (natom by 1)
+    float *fz0vec = (float *) malloc(sizeof(float)*natoms);         // size (natom by 1)
+    float *fx1vec = (float *) malloc(sizeof(float)*natoms);         // size (natom by 1)
+    float *fy1vec = (float *) malloc(sizeof(float)*natoms);         // size (natom by 1)
+    float *fz1vec = (float *) malloc(sizeof(float)*natoms);         // size (natom by 1)
+    //& gamma
+    float *gammax = (float *) malloc(sizeof(float)*natoms);         // size (natom by 1)
+    float *gammay = (float *) malloc(sizeof(float)*natoms);         // size (natom by 1)
+    float *gammaz = (float *) malloc(sizeof(float)*natoms);         // size (natom by 1)
     // maximum force array
     float *maxf = (float *) malloc(sizeof(float)*3);   // size (natom by natom)
+    // random number generator
+    unsigned long int now = static_cast<unsigned long int>(time(NULL));
+    MTRand *mtrand = new MTRand(now);
+
+    // read xyz positions and 
+    readInput("coordinates/Test.xyz", natoms, xyz1mat);
+
+    // initial guess values 
+    SetInitialGuessPositions(natoms, ndim, mtrand, xyz1mat, xyz0mat);
+
+    VectorExtraction(natoms, ndim, xyz0mat+0, ndim, x0vec);
+    VectorExtraction(natoms, ndim, xyz0mat+1, ndim, y0vec);
+    VectorExtraction(natoms, ndim, xyz0mat+2, ndim, z0vec);
+   
+    ClearMatrix(natoms, natoms, fx0mat);
+    ClearMatrix(natoms, natoms, fy0mat);
+    ClearMatrix(natoms, natoms, fz0mat);
+    printf("\nFXYZ0__\n"); 
+    PrintMatrix(natoms, natoms, fx0mat);
+
+    // compute dx, dy, dz, dr (n x n)
+    ComputeDX(natoms, xyz0mat, dx0mat);
+    ComputeDY(natoms, xyz0mat, dy0mat);
+    ComputeDZ(natoms, xyz0mat, dz0mat);
+    ComputeDR(natoms, xyz0mat, dr0mat);
+
+    // compute fx, fy, fz jacobian matrices (diagonal elements are atom forces) (n x n)
+    ComputeMorseForceX(natoms, dx0mat, dr0mat, fx0mat);
+    ComputeMorseForceY(natoms, dy0mat, dr0mat, fy0mat);
+    ComputeMorseForceZ(natoms, dz0mat, dr0mat, fz0mat);
     
-    // read xyz positions
-    //readInput("coordinates/Test.xyz", natoms, xyzmat);
-    readInput("coordinates/Configuration.xyz", natoms, xyzmat);
-    //printf("\nXYZ__\n"); PrintMatrix(natoms, 3, xyzmat);
+    // get fx, fy, fz components along diagonal
+    VectorExtraction(natoms, natoms, fx0mat, natoms+1, fx0vec);
+    VectorExtraction(natoms, natoms, fy0mat, natoms+1, fy0vec);
+    VectorExtraction(natoms, natoms, fz0mat, natoms+1, fz0vec);
+    /* 
+    for(long n=0; n<numruns; n++) {    
+        // clear all forces (n x n)
+        ClearMatrix(natoms, natoms, fx1mat);
+        ClearMatrix(natoms, natoms, fy1mat);
+        ClearMatrix(natoms, natoms, fz1mat);
     
-    // clear all forces
-    ClearMatrix(natoms, natoms, fxmat);
-    ClearMatrix(natoms, natoms, fymat);
-    ClearMatrix(natoms, natoms, fzmat);
+        // compute dx, dy, dz, dr (n x n)
+        ComputeDX(natoms, xyz1mat, dx1mat);
+        ComputeDY(natoms, xyz1mat, dy1mat);
+        ComputeDZ(natoms, xyz1mat, dz1mat);
+        ComputeDR(natoms, xyz1mat, dr1mat);
     
-    // compute dx, dy, dz, dr
-    ComputeDX(natoms, xyzmat, dxmat);
-    ComputeDY(natoms, xyzmat, dymat);
-    ComputeDZ(natoms, xyzmat, dzmat);
-    ComputeDR(natoms, xyzmat, drmat);
+        // compute fx, fy, fz jacobian matrices (diagonal elements are atom forces) (n x n)
+        ComputeMorseForceX(natoms, dxmat, drmat, fxmat);
+        ComputeMorseForceY(natoms, dymat, drmat, fymat);
+        ComputeMorseForceZ(natoms, dzmat, drmat, fzmat);
+        
+        // compute optimized gamma ceof.
+        //ComputeGamma(natoms, ndim, xyzmat, xyzmat0, gamma); // matrix version
+        ComputeGammaX(natoms, x1vec, x0vec, fx1vec, fx0vec, gammaxvec);
+        ComputeGammaX(natoms, y1vec, y0vec, fy1vec, fy0vec, gammayvec);
+        ComputeGammaX(natoms, z1vec, z0vec, fz1vec, fz0vec, gammazvec);
+
+        // save current xyz coords to xyz-old
+        VectorCopy(natoms, x1vec, x0vec);
+
+        // compute x^(k+1)[i] = x[i] + gammax[i]*fx[i]
+        // compute y^(k+1)[i] = y[i] + gammay[i]*fy[i]
+        // compute z^(k+1)[i] = z[i] + gammaz[i]*fz[i]
+        ComputeNewX(natoms, x1vec, gammaxvec, fx1vec); // returns x1vec
+        ComputeNewY(natoms, y1vec, gammayvec, fy1vec); // returns y1vec
+        ComputeNewZ(natoms, z1vec, gammazvec, fz1vec); // returns z1vec
+
+        // compute maximum fx, fy, fz
+        int max_idx_x = GetAbsMaxElementIndex(natoms, natoms, fxmat, 1); // stride is 1
+        int max_idx_y = GetAbsMaxElementIndex(natoms, natoms, fymat, 1);
+        int max_idx_z = GetAbsMaxElementIndex(natoms, natoms, fzmat, 1);
     
-    // compute fx, fy, fz jacobian matrices (diagonal elements are atom forces)
-    ComputeMorseForceX(natoms, dxmat, drmat, fxmat);
-    ComputeMorseForceY(natoms, dymat, drmat, fymat);
-    ComputeMorseForceZ(natoms, dzmat, drmat, fzmat);
-    //printf("\nFX__\n"); PrintMatrix(natoms, natoms, fxmat);
-    //printf("\nFY__\n"); PrintMatrix(natoms, natoms, fymat);
-    //printf("\nFZ__\n"); PrintMatrix(natoms, natoms, fzmat);
-    printf("\nFX__DIAG\n"); PrintMatrixDiag(natoms, natoms, fxmat);
-    printf("\nFY__DIAG\n"); PrintMatrixDiag(natoms, natoms, fymat);
-    printf("\nFZ__DIAG\n"); PrintMatrixDiag(natoms, natoms, fzmat);
-    int max_idx_x = GetAbsMaxElementIndex(natoms, natoms, fxmat, 1); // can skip with 1 or natoms
-    int max_idx_y = GetAbsMaxElementIndex(natoms, natoms, fymat, 1);
-    int max_idx_z = GetAbsMaxElementIndex(natoms, natoms, fzmat, 1);
-    printf("\nmax fx[%d] = %f\n", max_idx_x, fxmat[max_idx_x]);
-    printf("\nmax fy[%d] = %f\n", max_idx_y, fymat[max_idx_y]);
-    printf("\nmax fz[%d] = %f\n", max_idx_z, fzmat[max_idx_z]);
-    
-    // show absolute maximum element
-    if(abs(fxmat[max_idx_x]) > abs(fymat[max_idx_y]) && abs(fxmat[max_idx_x]) > abs(fzmat[max_idx_z])) {
-        printf("\nMax force component is fx[%d] = %f\n", max_idx_x, fxmat[max_idx_x]);
+        // show absolute maximum element
+        if(abs(fxmat[max_idx_x]) > abs(fymat[max_idx_y]) && abs(fxmat[max_idx_x]) > abs(fzmat[max_idx_z])) {
+            printf("\nMax force component is fx[%d] = %f\n", max_idx_x, fxmat[max_idx_x]);
+        }
+        if(abs(fymat[max_idx_y]) > abs(fxmat[max_idx_x]) && abs(fymat[max_idx_y]) > abs(fzmat[max_idx_z])) {
+            printf("\nMax force component is fy[%d] = %f\n", max_idx_y, fymat[max_idx_y]);
+        }
+        if(abs(fzmat[max_idx_z]) > abs(fxmat[max_idx_x]) && abs(fzmat[max_idx_z]) > abs(fzmat[max_idx_y])) {
+            printf("\nMax force component is fz[%d] = %f\n", max_idx_z, fzmat[max_idx_z]);
+        }
     }
-    if(abs(fymat[max_idx_y]) > abs(fxmat[max_idx_x]) && abs(fymat[max_idx_y]) > abs(fzmat[max_idx_z])) {
-        printf("\nMax force component is fy[%d] = %f\n", max_idx_y, fymat[max_idx_y]);
-    }
-    if(abs(fzmat[max_idx_z]) > abs(fxmat[max_idx_x]) && abs(fzmat[max_idx_z]) > abs(fzmat[max_idx_y])) {
-        printf("\nMax force component is fz[%d] = %f\n", max_idx_z, fzmat[max_idx_z]);
-    }
-    // free memory
-    free(xyzmat); free(dxmat); free(dymat); free(dzmat); free(drmat); 
-    free(fxmat); free(fymat); free(fzmat);
+    */
+    // print summary
+    printf("\nXYZ__\n\n");
+    PrintMatrix(natoms, ndim, xyz1mat);
+    printf("\nXYZ0__\n\n");
+    PrintMatrix(natoms, ndim, xyz0mat);
+    printf("\nX0_\n\n");
+    PrintMatrix(natoms, 1, x0vec);
+    printf("\nY0_\n\n");
+    PrintMatrix(natoms, 1, y0vec);
+    printf("\nZ0_\n\n");
+    PrintMatrix(natoms, 1, z0vec);
+
+    printf("\nFX0_\n\n");
+    PrintMatrix(natoms, 1, fx0vec);
+    // free XYZ
+    free(xyz0mat); free(xyz1mat);
+    // free MATRIX
+    free(dx0mat); free(dy0mat); free(dz0mat); free(dr0mat); 
+    free(dx1mat); free(dy1mat); free(dz1mat); free(dr1mat); 
+    free(fx0mat); free(fy0mat); free(fz0mat); 
+    free(fx1mat); free(fy1mat); free(fz1mat); 
+    // free VECTORS
+    free(x0vec);  free(y0vec);  free(z0vec);  free(x1vec);  free(y1vec);  free(z1vec);
+    free(fx0vec); free(fy0vec); free(fz0vec); free(fx1vec); free(fy1vec); free(fz1vec);
+    free(gammax); free(gammay); free(gammaz);
+    free(maxf);
+    delete mtrand;
 }
 
 // ========// ========// ========// ========// =============
@@ -184,6 +291,36 @@ int GetAbsMaxElementIndex(long n, long m, float *vec, long skip) {
     }
     return index;
 }
+
+// GDA RELATED
+float* SetInitialGuessPositions(long n, long m, MTRand* mtrand, float* xyz, float* newxyz) {
+    // setup initial guess positions
+    // returns new xyz real matrix that is size n by m
+    for(long i = 0; i < n; i++) {
+        for(long j = 0; j < m; j++) {
+            newxyz[i*m + j] = xyz[i*m + j] + mtrand->randNorm(0,1);
+        }
+    }
+    return newxyz;
+}
+
+float* MatrixCopy(long n, long m, float* x, float* y) {
+    // copy x matrix to y matrix
+    if(__APPLE__) {
+        cblas_scopy(n*m, x, 1, y, 1);
+    }
+    return y;
+}
+
+float* VectorExtraction(long n, long m, float* mat, long stride, float* vec) {
+    // extract column vector from matrix
+    if(__APPLE__) {
+        cblas_scopy(n, mat, stride, vec, 1);
+    }
+    return vec;
+}
+
+// EXTRA
 
 float* setXLatticePosition(long n, float *x, float dx) {
     // fcc lattice construction
@@ -434,3 +571,43 @@ float* ComputeMorseForceZ(long natoms, float *dz, float *dr, float *fz) {
     }
     return fz;
 }
+
+float* ComputeGamma(long natoms, long ndim, float* xyzmat, float* xyzmat0, float* gammaxyz, float* fxyz, float* fxyz0) {
+    // compute gamma
+    float numerator_sum, denominator_sum, dxyz, df;
+    long index; long i, j, k;
+    for(i = 0; i < natoms; i++) {
+        for(j = 0; j < ndim; j++) {
+            numerator_sum = denominator_sum = 0;
+            // inner product sum
+            for(k = 0; k < natoms; k++) {
+                dxyz = xyzmat[k*ndim + j] - xyzmat0[k*ndim + j];
+                df = fxyz[k*ndim + j] - fxyz0[k*ndim + j];
+                numerator_sum += dxyz * df; 
+                denominator_sum += pow(df, 2);
+            }
+            index = i*ndim + j;
+            gammaxyz[index] = numerator_sum / denominator_sum;
+        }
+    }
+    return gammaxyz;
+}
+
+float* ComputeGammaVec(long natoms, float* x, float* x0, float* fx, float* fx0, float* gammax) {
+    // compute gamma
+    float numerator_sum, denominator_sum, dx, df;
+    long index; long i, j, k;
+    for(i = 0; i < natoms; i++) {
+        numerator_sum = denominator_sum = 0;
+        // inner product sum
+        for(k = 0; k < natoms; k++) {
+            dx = x[k] - x0[k];
+            df = fx[k] - fx0[k];
+            numerator_sum += dx * df;
+            denominator_sum += pow(df, 2);
+        }
+        gammax[i] = numerator_sum / denominator_sum;
+    }
+    return gammax;
+}
+
