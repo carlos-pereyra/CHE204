@@ -455,6 +455,7 @@ float* ComputeMorseForceX(long natoms, float *dx, float *dr, float *fx) {
         force_sum = 0;
         for(j = i + 1; j < natoms; j++) {
             val = 2*d*a * ( exp(-2*a*(dr[j]-ro)) - exp(-a*(dr[j]-ro)) ) * dx[j] / dr[j];
+            printf("val = %f\n", val);
             fx[j] -= val;
             force_sum += val;
             //fx[i*natoms + j] = val; 
