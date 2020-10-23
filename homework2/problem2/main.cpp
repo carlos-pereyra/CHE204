@@ -76,8 +76,8 @@ float* ComputeGammaVec(long n, float* r, float* r0, float* fr, float* fr0, float
 
 int main(int argc, char** argv) {
     // setup and initialization
-    long natoms = 32; long ndim = 3; // make sure natoms matches the number of atoms in .xyz file
-    long numruns = 30;
+    long natoms = 3; long ndim = 3; // make sure natoms matches the number of atoms in .xyz file
+    long numruns = 3;
     // MATRIX
     //
     //& coords
@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
     MTRand *mtrand = new MTRand(now);
 
     // read xyz positions and 
-    readInput("coordinates/Configuration.xyz", natoms, xyzmat);
+    readInput("coordinates/Test.xyz", natoms, xyzmat);
 
     // initial guess gamma values 
     float gammax = 1; //mtrand->randNorm(0,1);
@@ -141,7 +141,14 @@ int main(int argc, char** argv) {
         ComputeDY(natoms, xyzmat, dymat);
         ComputeDZ(natoms, xyzmat, dzmat);
         ComputeDR(natoms, xyzmat, drmat);
-    
+   
+        printf("\n__DX_MATRIX__\n");
+        PrintMatrix(natoms, natoms, dxmat);
+        printf("\n__DY_MATRIX__\n");
+        PrintMatrix(natoms, natoms, dymat);
+        printf("\n__DZ_MATRIX__\n");
+        PrintMatrix(natoms, natoms, dzmat);
+
         // compute fx, fy, fz jacobian matrices (diagonal elements are atom forces) (n x n)
         ComputeMorseForceX(natoms, dxmat, drmat, fxmat);
         ComputeMorseForceY(natoms, dymat, drmat, fymat);
@@ -152,14 +159,12 @@ int main(int argc, char** argv) {
         ComputeNewY(natoms, xyzmat, gammay, fymat);
         ComputeNewZ(natoms, xyzmat, gammaz, fzmat);
 
-        /*
-        printf("\n__FX' MATRIX__\n");
+        printf("\n__FX'_MATRIX__\n");
         PrintMatrix(natoms, natoms, fxmat);
-        printf("\n__FY' MATRIX__\n");
+        printf("\n__FY'_MATRIX__\n");
         PrintMatrix(natoms, natoms, fymat);
-        printf("\n__FZ' MATRIX__\n");
+        printf("\n__FZ'_MATRIX__\n");
         PrintMatrix(natoms, natoms, fzmat);
-        */
 
         // compute optimized gamma ceof.
         gammax = ComputeNewGammaX(natoms, xyzmat, xyzmat_old, gammax, fxmat, fxmat_old);
