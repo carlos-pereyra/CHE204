@@ -82,9 +82,11 @@ float* ComputeGammaVec(long n, float* r, float* r0, float* fr, float* fr0, float
 
 int main(int argc, char** argv) {
     // setup and initialization
+
     long natoms = 32; long ndim = 3;    // make sure natoms matches the 
                                         // number of atoms in .xyz file
     long numruns = 5000;
+
     // MATRIX
     //
     //& coords
@@ -111,8 +113,10 @@ int main(int argc, char** argv) {
     MTRand *mtrand = new MTRand(now);
 
     // read xyz positions and 
+
     //readInput("coordinates/Test.xyz", natoms, xyzmat);
     readInput("coordinates/Configuration.xyz", natoms, xyzmat);
+
 
     // initial guess gamma values 
     VectorFill(natoms, gamma, 0.01);
@@ -125,6 +129,7 @@ int main(int argc, char** argv) {
         printf("\n=======================\n");
         // save current values into array (for old value reference). 
         MatrixCopy(natoms, ndim,   xyzmat, xyzmat_old);
+
         MatrixCopy(natoms, 1, fxvec,  fxvec_old);
         MatrixCopy(natoms, 1, fyvec,  fyvec_old);
         MatrixCopy(natoms, 1, fzvec,  fzvec_old);
