@@ -33,6 +33,9 @@ float* ClearMatrix(long n, long m, float* mat);
 float* SetMatrixElement(long n, long m, float *mat, long index, long value);
 int GetAbsMaxElementIndex(long n, long m, float* mat, long skip);
 
+// VECTOR OPERATIONS
+float* VectorFill(const long n, float *v, float val);
+
 // GDA RELATED
 float* SetInitialGuessPositions(long n, long m, MTRand *, float* xyz, float* newxyz);
 float* ComputeGammaX(long n, long m, float* xyzmat, float* xyzmat0, float* gamma);
@@ -63,10 +66,11 @@ float* ComputeMorseForceX(long n, float *xyz, float *fx);
 float* ComputeMorseForceY(long n, float *xyz, float *fy);
 float* ComputeMorseForceZ(long n, float *xyz, float *fz);
 
-float* ComputeNewX(long n, float* xyzmat, float gx, float* fxmat);
-float* ComputeNewY(long n, float* xyzmat, float gy, float* fymat);
-float* ComputeNewZ(long n, float* xyzmat, float gz, float* fzmat);
+float* ComputeNewX(long n, float* xyzmat, float* g, float* fxmat);
+float* ComputeNewY(long n, float* xyzmat, float* g, float* fymat);
+float* ComputeNewZ(long n, float* xyzmat, float* g, float* fzmat);
 
+float* ComputeNewGamma(long n, float* xyz, float* xyzold, float* g, float* fx, float* fxo, float* fy, float* fyo, float* fz, float* fzo);
 float ComputeNewGammaX(long n, float* xyzmat, float* xyzmatold, float gx, float* fxmat, float* fxmatold);
 float ComputeNewGammaY(long n, float* xyzmat, float* xyzmatold, float gy, float* fymat, float* fymatold);
 float ComputeNewGammaZ(long n, float* xyzmat, float* xyzmatold, float gz, float* fzmat, float* fzmatold);
@@ -78,25 +82,30 @@ float* ComputeGammaVec(long n, float* r, float* r0, float* fr, float* fr0, float
 
 int main(int argc, char** argv) {
     // setup and initialization
-    long natoms = 32; long ndim = 3; // make sure natoms matches the number of atoms in .xyz file
-    long numruns = 2000;
+    long natoms = 32; long ndim = 3;    // make sure natoms matches the 
+                                        // number of atoms in .xyz file
+    long numruns = 5000;
     // MATRIX
     //
     //& coords
-    float *xyzmat_old = (float *) malloc(sizeof(float)*natoms*ndim); // size (natom by ndim)
-    float *xyzmat = (float *) malloc(sizeof(float)*natoms*ndim);     // size (natom by ndim)
+    float *xyzmat_old = (float *) malloc(sizeof(float)*natoms*ndim);// size (natom by ndim)
+    float *xyzmat = (float *) malloc(sizeof(float)*natoms*ndim);    // size (natom by ndim)
     //& pair distance
-    float *dxvec = (float *) malloc(sizeof(float)*natoms);       // size (natom by natom)
-    float *dyvec = (float *) malloc(sizeof(float)*natoms);       // size (natom by natom)
-    float *dzvec = (float *) malloc(sizeof(float)*natoms);       // size (natom by natom)
-    float *drvec = (float *) malloc(sizeof(float)*natoms);       // size (natom by natom)
+    float *dxvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
+    float *dyvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
+    float *dzvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
+    float *drvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
     //& jacobian force matrix 
-    float *fxvec_old = (float *) malloc(sizeof(float)*natoms);   // size (natom by natom)
-    float *fyvec_old = (float *) malloc(sizeof(float)*natoms);   // size (natom by natom)
-    float *fzvec_old = (float *) malloc(sizeof(float)*natoms);   // size (natom by natom)
-    float *fxvec = (float *) malloc(sizeof(float)*natoms);   // size (natom by natom)
-    float *fyvec = (float *) malloc(sizeof(float)*natoms);   // size (natom by natom)
-    float *fzvec = (float *) malloc(sizeof(float)*natoms);   // size (natom by natom)
+    float *fxvec_old = (float *) malloc(sizeof(float)*natoms);  // size (natom by 1)
+    float *fyvec_old = (float *) malloc(sizeof(float)*natoms);  // size (natom by 1)
+    float *fzvec_old = (float *) malloc(sizeof(float)*natoms);  // size (natom by 1)
+    float *fxvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
+    float *fyvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
+    float *fzvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
+    float *maxfvec = (float *) malloc(sizeof(float)*ndim);      // size (ndim by 1)
+    //& gamma vector
+    float *gamma = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
+    float *g = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
     // random number generator
     unsigned long int now = static_cast<unsigned long int>(time(NULL));
     MTRand *mtrand = new MTRand(now);
@@ -106,9 +115,8 @@ int main(int argc, char** argv) {
     readInput("coordinates/Configuration.xyz", natoms, xyzmat);
 
     // initial guess gamma values 
-    float gammax = 0.001; //mtrand->randNorm(0,1);
-    float gammay = 0.001; //mtrand->randNorm(0,1);
-    float gammaz = 0.001; //mtrand->randNorm(0,1);
+    VectorFill(natoms, gamma, 0.01);
+    VectorFill(natoms, g, 0.01);
     float ep, maxf;
     
     for(long n=0; n<numruns; n++) {
@@ -121,12 +129,12 @@ int main(int argc, char** argv) {
         MatrixCopy(natoms, 1, fyvec,  fyvec_old);
         MatrixCopy(natoms, 1, fzvec,  fzvec_old);
 
-        // clear all forces (n x n)
+        // clear all forces (n x 1)
         ClearMatrix(natoms, 1, fxvec);
         ClearMatrix(natoms, 1, fyvec);
         ClearMatrix(natoms, 1, fzvec);
 
-        // compute fx, fy, fz jacobian matrices (diagonal elements are atom forces) (n x n)
+        // compute fx, fy, fz vector (n x 1)
         ep = ComputeMorsePotential(natoms, xyzmat);
         ComputeMorseForceX(natoms, xyzmat, fxvec);
         ComputeMorseForceY(natoms, xyzmat, fyvec);
@@ -142,68 +150,54 @@ int main(int argc, char** argv) {
         PrintMatrix(natoms, 1, fzvec);*/
 
         // compute new positions (returns new xyzmat)
-        ComputeNewX(natoms, xyzmat, gammax, fxvec); 
-        ComputeNewY(natoms, xyzmat, gammay, fyvec);
-        ComputeNewZ(natoms, xyzmat, gammaz, fzvec);
+        ComputeNewX(natoms, xyzmat, gamma, fxvec); 
+        ComputeNewY(natoms, xyzmat, gamma, fyvec);
+        ComputeNewZ(natoms, xyzmat, gamma, fzvec);
 
         // compute optimized gamma ceof.
-        /*gammax = ComputeNewGammaX(natoms, xyzmat, xyzmat_old, gammax, fxvec, fxvec_old);
-        gammay = ComputeNewGammaY(natoms, xyzmat, xyzmat_old, gammay, fyvec, fyvec_old);
-        gammaz = ComputeNewGammaZ(natoms, xyzmat, xyzmat_old, gammaz, fzvec, fzvec_old);
-*/
+        ComputeNewGamma(natoms, xyzmat, xyzmat_old, g, fxvec, fxvec_old, fyvec, fyvec_old, fzvec, fzvec_old);
+        
         // compute maximum fx, fy, fz
         int idX = GetAbsMaxElementIndex(natoms, 1, fxvec, 1); // stride is 1
         int idY = GetAbsMaxElementIndex(natoms, 1, fyvec, 1);
         int idZ = GetAbsMaxElementIndex(natoms, 1, fzvec, 1);
 
+        // maximum force of all the components
+        maxfvec[0] = fxvec[idX];
+        maxfvec[1] = fyvec[idY];
+        maxfvec[2] = fzvec[idZ];
+        int idMax = GetAbsMaxElementIndex(ndim, 1, maxfvec, 1);
+        maxf = maxfvec[idMax];
+
         // show absolute maximum element
         //cout << std::scientific;
         cout.precision(2);
-        cout << "\nMax force component is fx[" << idX;
+        cout << "\nMax force component in fx[" << idX;
         cout << "] = " << fxvec[idX] << "\n";
-        cout << "\nMax force component is fy[" << idY;
+        cout << "\nMax force component in fy[" << idY;
         cout << "] = " << fyvec[idY] << "\n";
-        cout << "\nMax force component is fz[" << idZ;
+        cout << "\nMax force component in fz[" << idZ;
         cout << "] = " << fyvec[idZ] << "\n";
-        /*if(abs(fxvec[idX]) > abs(fyvec[idY]) && 
-            abs(fxvec[idX]) > abs(fzvec[idZ])) {
-            //cout << std::scientific;
-            cout.precision(2);
-            cout << "\nMax force component is fx[" << idX;
-            cout << "] = " << fxvec[idX] << "\n";
-            maxf = fxvec[idX];
-        }
-        if(abs(fyvec[idY]) > abs(fxvec[idX]) && 
-            abs(fyvec[idY]) > abs(fzvec[idZ])) {
-            //cout << std::scientific;
-            cout.precision(2);
-            cout << "\nMax force component is fy[" << idY;
-            cout << "] = " << fyvec[idY] << "\n";
-            maxf = fyvec[idY];
-        }
-        if(abs(fzvec[idZ]) > abs(fxvec[idX]) && 
-            abs(fzvec[idZ]) > abs(fzvec[idY])) {
-            //cout << std::scientific;
-            cout.precision(2);
-            cout << "\nMax force component is fz[" << idZ;
-            cout << "] = " << fyvec[idZ] << "\n";
-            maxf = fzvec[idZ];
-        }*/
+        cout << "================================";
+        cout << "\nAbs. Max force component is = ";
+        cout << maxfvec[idMax] << "\n";
 
-        maxf = fxvec[idX];
-        if(abs(fxvec[idX])<(1e-4) || abs(fyvec[idY])<(1e-4) || abs(fzvec[idZ])<(1e-4) ) {
+        Coords2XYZFile(natoms, xyzmat, n);
+        if( !(n % 2) ) Results2File(n, ep, maxf);
+
+        if(abs(maxf) < (1e-4) ) {
             break;
         }
-        
-        Coords2XYZFile(natoms, xyzmat, n);
-        Results2File(n, ep, maxf);
     }
 
     // free memory 
     free(xyzmat); free(xyzmat_old);
     free(dxvec);     free(dyvec);     free(dzvec); free(drvec); 
     free(fxvec);     free(fyvec);     free(fzvec); 
-    free(fxvec_old); free(fyvec_old); free(fzvec_old); 
+    free(fxvec_old); free(fyvec_old); free(fzvec_old);
+    free(gamma);
+    free(g);
+    free(maxfvec);
     delete mtrand;
 }
 
@@ -275,6 +269,20 @@ int GetAbsMaxElementIndex(long n, long m, float *vec, long skip) {
         }
     }
     return index;
+}
+
+// VECTOR OPERATIONS
+float* VectorFill(const long n, float *v, float val) {
+    // fill vector with single value
+    // return filled vector
+    if(__APPLE__) {
+        catlas_sset(n, val, v, 1);
+    } else {
+        for(int i=0; i<=n; i++) {
+            v[i] = val;
+        }
+    }
+    return v;
 }
 
 // GDA RELATED
@@ -356,16 +364,17 @@ void Results2File(long iter, float e, float maxf) {
     // open new file
     if (iter == 0) {
         myfile.open(filename, std::fstream::out);
-        myfile << left << setw(12) << "# iter";
-        myfile << left << setw(12) << "e";
+        myfile << left << setw(20) << "# iter";
+        myfile << left << setw(20) << "e";
         myfile << "maxf" << "\n";
     }
     // append to file
     else myfile.open(filename, std::fstream::app);
 
     // write results to file
-    myfile << left << setw(12) << iter;
-    myfile << left << setw(12) << e;
+    myfile << std::scientific;
+    myfile << left << setw(20) << iter;
+    myfile << left << setw(20) << e;
     myfile << maxf << "\n";
     myfile.close();
 }
@@ -565,7 +574,7 @@ float* ComputeMorseForceZ(long natoms, float *xyz, float *fz) {
 
 // NEW POSITIONS
 
-float* ComputeNewX(long n, float* xyzmat, float gx, float* fxvec) {
+float* ComputeNewX(long n, float* xyzmat, float* g, float* fxvec) {
     // compute new x coorindate with new gamma and force computations
     //      eqn: compute x^(k+1)[i] = x[i] + gammax[i]*fx[i]
     // return new xyz (n x 3) coordinates
@@ -573,12 +582,12 @@ float* ComputeNewX(long n, float* xyzmat, float gx, float* fxvec) {
     
     long ndim = 3;
     for(long i = 0; i<n; i++) {
-        xyzmat[i*ndim + 0] = xyzmat[i*ndim + 0] + gx * fxvec[i];
+        xyzmat[i*ndim + 0] = xyzmat[i*ndim + 0] + g[i] * fxvec[i];
     }
     return xyzmat;
 }
 
-float* ComputeNewY(long n, float* xyzmat, float gy, float* fyvec) {
+float* ComputeNewY(long n, float* xyzmat, float* g, float* fyvec) {
     // compute new y coorindate with new gamma and force computations
     //      eqn: compute y^(k+1)[i] = y[i] + gy * fy[i]
     // return new xyz (n x 3) coordinates
@@ -586,12 +595,12 @@ float* ComputeNewY(long n, float* xyzmat, float gy, float* fyvec) {
     
     long ndim = 3;
     for(long i = 0; i<n; i++) {
-        xyzmat[i*ndim + 1] = xyzmat[i*ndim + 1] + gy * fyvec[i];
+        xyzmat[i*ndim + 1] = xyzmat[i*ndim + 1] + g[i] * fyvec[i];
     }
     return xyzmat;
 }
 
-float* ComputeNewZ(long n, float* xyzmat, float gz, float* fzvec) {
+float* ComputeNewZ(long n, float* xyzmat, float* g, float* fzvec) {
     // compute new z coorindate with new gamma and force computations
     //      eqn: compute z^(k+1)[i] = z[i] + gz * fz[i]
     // return new xyz (n x 3) coordinates
@@ -599,12 +608,58 @@ float* ComputeNewZ(long n, float* xyzmat, float gz, float* fzvec) {
 
     long ndim = 3;
     for(long i = 0; i<n; i++) {
-        xyzmat[i*ndim + 2] = xyzmat[i*ndim + 2] + gz * fzvec[i];
+        xyzmat[i*ndim + 2] = xyzmat[i*ndim + 2] + g[i] * fzvec[i];
     }
     return xyzmat;
 }
 
 // NEW GAMMA
+
+float* ComputeNewGamma(long n, float* xyz, float* xyzold, float* g, float* fx, float* fxo, float* fy, float* fyo, float* fz, float* fzo) {
+    // compute new gamma for x direction
+    //  expects xyz (natoms x 3) matrix
+    //  expects xyzold (natoms x 3) matrix
+    //  expects g (natoms x 1) vec
+    //  expects fx (natoms x 1) vector
+    //  expects fxold (natoms x 1) vector
+    //  expects fy (natoms x 1) vector
+    //  expects fyold (natoms x 1) vector
+    //  expects fz (natoms x 1) vector
+    //  expects fzold (natoms x 1) vector
+    if(DBG) printf("\nComputeNewGamma()\n");
+    long i;
+    float dx, dy, dz, dfx, dfy, dfz;
+    float numerator = 0;
+    float denominator = 0;
+    for(i = 0; i < n; i++) {
+        dx = xyz[ i*3 + 0 ] - xyzold[ i*3 + 0 ];
+        dy = xyz[ i*3 + 1 ] - xyzold[ i*3 + 1 ];
+        dz = xyz[ i*3 + 2 ] - xyzold[ i*3 + 2 ];
+        dfx = fx[i] - fxo[i];
+        dfy = fy[i] - fyo[i];
+        dfz = fz[i] - fzo[i];
+        numerator = abs(dx * dfx + dy * dfy + dz * dfz);
+        denominator = pow(dfx, 2) + pow(dfy, 2) + pow(dfz, 2);
+        printf("x = %f, xo = %f, dx = %f, dfx = %f\n", xyz[ i*3 + 0 ], xyzold[ i*3 + 0 ], dx, dfx);
+        if((numerator == 0) || (denominator == 0)) {
+             g[i] = 0;
+             continue;
+        }
+        g[i] = numerator / denominator;
+        //printf("g[%ld] = %f\n", i, g[i]);
+    }
+    /*
+    // value
+    float val = numerator / denominator;
+    // fill gamma vector
+    for(i = 0; i < n; i++) {
+        g[i] = val;
+        printf("g[%ld] = %f, f[%ld] = %f, fo[%ld] = %f\n", i, g[i], i, fx[i], i, fxo[i]);
+    }
+    */
+    // return vector
+    return g;
+}
 
 float ComputeNewGammaX(long n, float* xyz, float* xyzold, float gx, float* fx, float* fxold) {
     // compute new gamma for x direction
