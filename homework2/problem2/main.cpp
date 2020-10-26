@@ -82,13 +82,10 @@ float* ComputeGammaVec(long n, float* r, float* r0, float* fr, float* fr0, float
 
 int main(int argc, char** argv) {
     // setup and initialization
-
     long natoms = 32; long ndim = 3;    // make sure natoms matches the 
                                         // number of atoms in .xyz file
-    long numruns = 5000;
+    long numruns = 1;
 
-    // MATRIX
-    //
     //& coords
     float *xyzmat_old = (float *) malloc(sizeof(float)*natoms*ndim);// size (natom by ndim)
     float *xyzmat = (float *) malloc(sizeof(float)*natoms*ndim);    // size (natom by ndim)
@@ -147,12 +144,12 @@ int main(int argc, char** argv) {
 
         printf("\n__EP__\n");
         printf("\n EP = %f\n", ep);
-        /*printf("\n__FX_VECTOR__\n");
+        printf("\n__FX_VECTOR__\n");
         PrintMatrix(natoms, 1, fxvec);
         printf("\n__FY_VECTOR__\n");
         PrintMatrix(natoms, 1, fyvec);
         printf("\n__FZ_VECTOR__\n");
-        PrintMatrix(natoms, 1, fzvec);*/
+        PrintMatrix(natoms, 1, fzvec);
 
         // compute new positions (returns new xyzmat)
         ComputeNewX(natoms, xyzmat, gamma, fxvec); 
@@ -645,7 +642,6 @@ float* ComputeNewGamma(long n, float* xyz, float* xyzold, float* g, float* fx, f
         dfz = fz[i] - fzo[i];
         numerator = abs(dx * dfx + dy * dfy + dz * dfz);
         denominator = pow(dfx, 2) + pow(dfy, 2) + pow(dfz, 2);
-        printf("x = %f, xo = %f, dx = %f, dfx = %f\n", xyz[ i*3 + 0 ], xyzold[ i*3 + 0 ], dx, dfx);
         if((numerator == 0) || (denominator == 0)) {
              g[i] = 0;
              continue;
@@ -653,15 +649,6 @@ float* ComputeNewGamma(long n, float* xyz, float* xyzold, float* g, float* fx, f
         g[i] = numerator / denominator;
         //printf("g[%ld] = %f\n", i, g[i]);
     }
-    /*
-    // value
-    float val = numerator / denominator;
-    // fill gamma vector
-    for(i = 0; i < n; i++) {
-        g[i] = val;
-        printf("g[%ld] = %f, f[%ld] = %f, fo[%ld] = %f\n", i, g[i], i, fx[i], i, fxo[i]);
-    }
-    */
     // return vector
     return g;
 }
