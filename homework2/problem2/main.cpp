@@ -38,14 +38,8 @@ float* VectorFill(const long n, float *v, float val);
 
 // GDA RELATED
 float* SetInitialGuessPositions(long n, long m, MTRand *, float* xyz, float* newxyz);
-float* ComputeGammaX(long n, long m, float* xyzmat, float* xyzmat0, float* gamma);
 float* MatrixCopy(long n, long m, float* x, float* y);
 float* VectorExtraction(long n, long m, float*, long, float*);
-// EXTRA
-float* setSMatrix(long n, long m, float sxy, float syz, float szy); // ignore
-float* setXLatticePosition(long n, float *x, float dx);             // ignore
-float* setYLatticePosition(long n, float *y, float dy);             // ignore
-float* setZLatticePosition(long n, float *z, float dz);             // ignore
 
 // IO
 void PrintMatrix(const long n, const long m, float *);
@@ -56,24 +50,18 @@ void Results2File(long iter, float e, float maxf);
 // PHYSICS
 float* MorsePotential(long s, long e, float *r, float *ep);
 
-float* ComputeDX(long natoms, float *xyzmat, float *dxmat);
-float* ComputeDY(long natoms, float *xyzmat, float *dymat);
-float* ComputeDZ(long natoms, float *xyzmat, float *dzmat);
-float* ComputeDR(long natoms, float *xyzmat, float *drmat);
+float* ComputeHessian(long natom, long ndim, float d, float* xyz, float* hij);
 
-float ComputeMorsePotential(long natoms, float *xyz);
-float* ComputeMorseForceX(long n, float *xyz, float *fx);
-float* ComputeMorseForceY(long n, float *xyz, float *fy);
-float* ComputeMorseForceZ(long n, float *xyz, float *fz);
+float ComputeAMorsePotential(float rij);
+float ComputeTotalMorsePotential(long natoms, float *xyz);
 
-float* ComputeNewX(long n, float* xyzmat, float* g, float* fxmat);
-float* ComputeNewY(long n, float* xyzmat, float* g, float* fymat);
-float* ComputeNewZ(long n, float* xyzmat, float* g, float* fzmat);
+//      a. FORCES
+float* ComputeMorseForces(long natoms, float *xyz, float *f);
+
+//      b. POSITION
+float* ComputeNewPositions(long natom_x_ndim, float* xyzvec, float* g, float* fvec);
 
 float* ComputeNewGamma(long n, float* xyz, float* xyzold, float* g, float* fx, float* fxo, float* fy, float* fyo, float* fz, float* fzo);
-float ComputeNewGammaX(long n, float* xyzmat, float* xyzmatold, float gx, float* fxmat, float* fxmatold);
-float ComputeNewGammaY(long n, float* xyzmat, float* xyzmatold, float gy, float* fymat, float* fymatold);
-float ComputeNewGammaZ(long n, float* xyzmat, float* xyzmatold, float gz, float* fzmat, float* fzmatold);
 
 /*
 float* ComputeGamma(long n, long m, float* xyzmat, float* xyzmat0, float* gamma);
@@ -83,28 +71,17 @@ float* ComputeGammaVec(long n, float* r, float* r0, float* fr, float* fr0, float
 int main(int argc, char** argv) {
     // setup and initialization
     long natoms = 32; long ndim = 3;    // make sure natoms matches the 
-                                        // number of atoms in .xyz file
-    long numruns = 1;
+                                       // number of atoms in .xyz file
+    long numruns = 1200;
 
     //& coords
-    float *xyzmat_old = (float *) malloc(sizeof(float)*natoms*ndim);// size (natom by ndim)
-    float *xyzmat = (float *) malloc(sizeof(float)*natoms*ndim);    // size (natom by ndim)
-    //& pair distance
-    float *dxvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
-    float *dyvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
-    float *dzvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
-    float *drvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
+    float *xyzmat_old = (float *) malloc(sizeof(float)*natoms*ndim);    // size (natom by ndim)
+    float *xyzmat = (float *) malloc(sizeof(float)*natoms*ndim);        // size (natom by ndim)
     //& jacobian force matrix 
-    float *fxvec_old = (float *) malloc(sizeof(float)*natoms);  // size (natom by 1)
-    float *fyvec_old = (float *) malloc(sizeof(float)*natoms);  // size (natom by 1)
-    float *fzvec_old = (float *) malloc(sizeof(float)*natoms);  // size (natom by 1)
-    float *fxvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
-    float *fyvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
-    float *fzvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
-    float *maxfvec = (float *) malloc(sizeof(float)*ndim);      // size (ndim by 1)
+    float *Fvec_old = (float *) malloc(sizeof(float)*natoms*ndim);      // size (natom by 1)
+    float *Fvec = (float *) malloc(sizeof(float)*natoms*ndim);  // size (natom by 1)
     //& gamma vector
-    float *gamma = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
-    float *g = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
+    float *gamma = (float *) malloc(sizeof(float)*natoms*ndim);      // size (natom by 1)
     // random number generator
     unsigned long int now = static_cast<unsigned long int>(time(NULL));
     MTRand *mtrand = new MTRand(now);
@@ -114,79 +91,44 @@ int main(int argc, char** argv) {
     //readInput("coordinates/Test.xyz", natoms, xyzmat);
     readInput("coordinates/Configuration.xyz", natoms, xyzmat);
 
-
     // initial guess gamma values 
-    VectorFill(natoms, gamma, 0.01);
-    VectorFill(natoms, g, 0.01);
+    VectorFill(natoms*ndim, gamma, 0.01);
     float ep, maxf;
     
     for(long n=0; n<numruns; n++) {
         printf("\n=======================");
         printf("\n__ iteration = %ld __\n", n);   
         printf("\n=======================\n");
-        // save current values into array (for old value reference). 
-        MatrixCopy(natoms, ndim,   xyzmat, xyzmat_old);
-
-        MatrixCopy(natoms, 1, fxvec,  fxvec_old);
-        MatrixCopy(natoms, 1, fyvec,  fyvec_old);
-        MatrixCopy(natoms, 1, fzvec,  fzvec_old);
 
         // clear all forces (n x 1)
-        ClearMatrix(natoms, 1, fxvec);
-        ClearMatrix(natoms, 1, fyvec);
-        ClearMatrix(natoms, 1, fzvec);
-
+        ClearMatrix(natoms, ndim, Fvec);
+        
+        // compute total system energy
+        ep = ComputeTotalMorsePotential(natoms, xyzmat);
+        
         // compute fx, fy, fz vector (n x 1)
-        ep = ComputeMorsePotential(natoms, xyzmat);
-        ComputeMorseForceX(natoms, xyzmat, fxvec);
-        ComputeMorseForceY(natoms, xyzmat, fyvec);
-        ComputeMorseForceZ(natoms, xyzmat, fzvec);
+        ComputeMorseForces(natoms, xyzmat, Fvec);
 
         printf("\n__EP__\n");
         printf("\n EP = %f\n", ep);
-        printf("\n__FX_VECTOR__\n");
-        PrintMatrix(natoms, 1, fxvec);
-        printf("\n__FY_VECTOR__\n");
-        PrintMatrix(natoms, 1, fyvec);
-        printf("\n__FZ_VECTOR__\n");
-        PrintMatrix(natoms, 1, fzvec);
+        /*printf("\n__F_VECTOR__\n");
+        PrintMatrix(natoms, ndim, Fvec);*/
 
         // compute new positions (returns new xyzmat)
-        ComputeNewX(natoms, xyzmat, gamma, fxvec); 
-        ComputeNewY(natoms, xyzmat, gamma, fyvec);
-        ComputeNewZ(natoms, xyzmat, gamma, fzvec);
-
-        // compute optimized gamma ceof.
-        ComputeNewGamma(natoms, xyzmat, xyzmat_old, g, fxvec, fxvec_old, fyvec, fyvec_old, fzvec, fzvec_old);
+        xyzmat = ComputeNewPositions(natoms*ndim, xyzmat, gamma, Fvec);
         
-        // compute maximum fx, fy, fz
-        int idX = GetAbsMaxElementIndex(natoms, 1, fxvec, 1); // stride is 1
-        int idY = GetAbsMaxElementIndex(natoms, 1, fyvec, 1);
-        int idZ = GetAbsMaxElementIndex(natoms, 1, fzvec, 1);
-
         // maximum force of all the components
-        maxfvec[0] = fxvec[idX];
-        maxfvec[1] = fyvec[idY];
-        maxfvec[2] = fzvec[idZ];
-        int idMax = GetAbsMaxElementIndex(ndim, 1, maxfvec, 1);
-        maxf = maxfvec[idMax];
+        int idMax = GetAbsMaxElementIndex(natoms*ndim, 1, Fvec, 1);
+        maxf = Fvec[idMax];
 
         // show absolute maximum element
         //cout << std::scientific;
         cout.precision(2);
-        cout << "\nMax force component in fx[" << idX;
-        cout << "] = " << fxvec[idX] << "\n";
-        cout << "\nMax force component in fy[" << idY;
-        cout << "] = " << fyvec[idY] << "\n";
-        cout << "\nMax force component in fz[" << idZ;
-        cout << "] = " << fyvec[idZ] << "\n";
         cout << "================================";
-        cout << "\nAbs. Max force component is = ";
-        cout << maxfvec[idMax] << "\n";
+        cout << "\nAbs. Max force component is = " << maxf << "\n";
 
         Coords2XYZFile(natoms, xyzmat, n);
         if( !(n % 2) ) Results2File(n, ep, maxf);
-
         if(abs(maxf) < (1e-4) ) {
             break;
         }
@@ -194,12 +136,10 @@ int main(int argc, char** argv) {
 
     // free memory 
     free(xyzmat); free(xyzmat_old);
-    free(dxvec);     free(dyvec);     free(dzvec); free(drvec); 
-    free(fxvec);     free(fyvec);     free(fzvec); 
-    free(fxvec_old); free(fyvec_old); free(fzvec_old);
+    free(Fvec); 
+    free(Fvec_old);
+    //free(hij);
     free(gamma);
-    free(g);
-    free(maxfvec);
     delete mtrand;
 }
 
@@ -322,22 +262,14 @@ void PrintMatrix(const long n, const long m, float *vec) {
     for(long i = 0; i < n*m; i++) {
         //cout << std::scientific;
         cout.precision(2);
-        cout << setw(8) << vec[i] << "\t";
-        if( !((i+1)%m) ) { cout << "\n"; }
-    }
-}
-
-void PrintMatrixDiag(const long n, const long m, float *vec) {
-    // print matrix diagonal (assumes vec is real and square)
-    for(long i = 0, j = 0; j < n*m; i++, j = i*(n+1)) {
-        cout << std::scientific;
-        cout.precision(2);
-        cout << setw(8) << vec[j] << setw(8) << "i = " << j << "\n";
+        cout << setw(8) << vec[i] << "\t\n";
+        //if( !((i+1)%m) ) { cout << "\n"; }
     }
 }
 
 void Coords2XYZFile(long n, float *xyz, long index) {
     // write coordinates to xyz file
+    if(DBG) printf("\nCoords2XYZFile()\n");
     string filename_xyz = "data/output.xyz";
     ofstream myfile;
     long i;
@@ -381,86 +313,49 @@ void Results2File(long iter, float e, float maxf) {
     myfile.close();
 }
 
-// PHYSICS
-
-float* MorsePotential(long s, long e, float *r, float *ep) {
-    // this function computes the morse potential.
-    //
-    // return a list containing potential energy.
-    float d = 2;
-    float a = 1;
-    float ro = 1.2;
-    for(long i=s; i<e; i++){
-        ep[i] = d*pow((1 - exp(-a*(r[i]-ro))), 2);
-            printf("%ld -> %ld dr = %f ep = %f\n", s, i, r[i], ep[i]);
-    }
-    return ep;
-}
-
 // SEPARATION DISTANCES
 
-float* ComputeDX(long natoms, float *xyzmat, float *dxvec) {
-    // provide natoms for the shape of the following matrices:
-    //      - access (natoms x 3) xyzmat matrix
-    //      - access (natoms x natoms) xyzmat
-    // return dxmat
-    if(DBG) printf("\nComputeDX()\n");
-    for(long i = 0; i < natoms; i++) {
-        dxvec[i] = xyzmat[0 + 0] - xyzmat[3*i + 0];
+float* ComputeHessian(long natom, long ndim, float d, float* xyz, float* hij) {
+    // compute 3N x 3N real hessian matrix
+    // finite central difference method of second order derivative requires differential distance = 'float d'
+    // xyz positions = 'float* xyz'
+    // 3n x 3n hessian matrix = 'float* hij'
+    long i, j, k;
+    for(i = 0; i < natom; i++) {
+        for(j = 0; j < natom * ndim; j++) {
+            //float dXij   = xyz[3*i + 0] - xyz[3*j + 0];
+            //float dYij   = xyz[3*i + 1] - xyz[3*j + 1];
+            //float dZij   = xyz[3*i + 2] - xyz[3*j + 2];
+            //float dRij   = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
+            //float dRijpd = sqrt(pow(dx+d, 2) + pow(dy+d, 2) + pow(dz+d, 2));
+            //float dRijmd = sqrt(pow(dx-d, 2) + pow(dy-d, 2) + pow(dz-d, 2));
+            for(k = 0; k < 3; k++) {
+                float Rij = xyz[3*i + k] - xyz[3*j + k];
+                float Eppd = ComputeAMorsePotential(Rij + d);
+                float Epmd = ComputeAMorsePotential(Rij - d);
+                float Ep = ComputeAMorsePotential(Rij);
+                hij[3*natom*i + 3*j + k] = ( Eppd + Epmd - 2*Ep ) / pow(d, 2);
+            }
+        }
     }
-    return dxvec;
-}
-
-float* ComputeDY(long natoms, float *xyzmat, float *dyvec) {
-    // provide natoms for the shape of the following matrices:
-    //      - access (natoms x 3) xyzmat matrix
-    //      - access (natoms x natoms) dxmat
-    // return dymat
-    if(DBG) printf("\nComputeDY()\n");
-    for(long i = 0; i < natoms; i++) {
-        dyvec[i] = xyzmat[0 + 1] - xyzmat[3*i + 1];
-    }
-    return dyvec;
-}
-
-float* ComputeDZ(long natoms, float *xyzmat, float *dzvec) {
-    // provide natoms for the shape of the following matrices:
-    //      - access (natoms x 3) xyzmat matrix
-    //      - access (natoms x 1) dzvec vector
-    // return dzmat
-    if(DBG) printf("\nComputeDZ()\n");
-    for(long i = 0; i < natoms; i++) {
-        dzvec[i] = xyzmat[0 + 2] - xyzmat[3*i + 2];
-    }
-    return dzvec;
-}
-
-float* ComputeDR(long natoms, float *xyzmat, float *drvec) {
-    // provide natoms for the shape of the following matrices:
-    //      - expects (natoms x 3) xyzmat matrix
-    //      - expects (natoms x 1) drvec vector
-    // return drmat
-    float dx, dy, dz;
-    if(DBG) printf("\nComputeDR()\n");
-    for(long i = 0; i<natoms; i++) {
-        dx = xyzmat[0 + 0] - xyzmat[i + 0];
-        dy = xyzmat[0 + 1] - xyzmat[i + 1];
-        dz = xyzmat[0 + 2] - xyzmat[i + 2];
-        drvec[i] = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
-    }
-    return drvec;
+    return hij;
 }
 
 // POTENTIAL CALCULATION
 
-float ComputeMorsePotential(long natoms, float *xyz) { //, float *ep) {
+float ComputeAMorsePotential(float rij) {
+    // separation distance between i'th and j'th particle = 'float rij'
+    // magnitude of separation between i'th and j'th particle = 'float drij'
+    float d = 1; float a = 1; float ro = 3.5;
+    float ep = d * pow((1 - exp(-a*(rij-ro))), 2);
+    return ep;
+}
+
+float ComputeTotalMorsePotential(long natoms, float *xyz) { //, float *ep) {
     // this function computes the morse potential. 
-    // this function expects vectors *dr, *ep with length natoms
+    // potential energy vector (spans natoms) = 'float* ep' 
     //
-    // return a list containing potential energy.
-    //float d = 2;
-    //float a = 1;
-    //float ro = 1.2;
+    // return total potential energy.
     float d = 1; float a = 1; float ro = 3.5;
     float ep_value; float ep_sum; float global_ep_sum = 0;
     float dx, dy, dz, dr;
@@ -484,135 +379,43 @@ float ComputeMorsePotential(long natoms, float *xyz) { //, float *ep) {
 
 // FORCE CALCULATIONS
 
-float* ComputeMorseForceX(long natoms, float *xyz, float *fx) {
-    // provide natoms for the shape of the following matrices:
-    //      - dx matrix size (natoms x natoms)
-    //      - dr matrix size (natoms x natoms)
-    //      - fx matrix size (natoms x natoms)
-    // return fx
-    if(DBG) printf("\nComputeMorseForceX()\n");
+float* ComputeMorseForces(long natoms, float *xyz, float *f) {
+    if(DBG) printf("\nComputeMorseForces()\n");
     float d = 1; float a = 1; float ro = 3.5;
-    float val = 0; float force_sum;
-    float dx, dy, dz, dr;
-    long i, j;
+    //float d = 2; float a = 1; float ro = 1.2;
+    float force; float force_sum;
+    float dXij, dYij, dZij, dRij, Rij;
+    long i, j, k;
     // upper diagonal forces in matrix
     for(i = 0; i < natoms; i++) {
         force_sum = 0;
         for(j = i + 1; j < natoms; j++) {
-            dx = xyz[i*3 + 0] - xyz[j*3 + 0];
-            dy = xyz[i*3 + 1] - xyz[j*3 + 1];
-            dz = xyz[i*3 + 2] - xyz[j*3 + 2];
-            dr = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
-            val = 2*d*a * ( exp(-2*a*(dr-ro)) - exp(-a*(dr-ro)) ) * dx / dr;
-            /*printf("\ni = %ld , j = %ld\n", i, j);
-            printf("x[%ld] = %f, x[%ld] = %f\n", i*3 + 0, xyz[i*3 + 0], j*3 + 0, xyz[j*3 + 0]);
-            printf("dx = %f\n", dx);
-            printf("dr = %f\n", dr);
-            printf("val = %f\n", val);*/
-            fx[j] -= val;
-            force_sum += val;
+            dXij = xyz[i*3 + 0] - xyz[j*3 + 0];
+            dYij = xyz[i*3 + 1] - xyz[j*3 + 1];
+            dZij = xyz[i*3 + 2] - xyz[j*3 + 2];
+            dRij = sqrt(pow(dXij, 2) + pow(dYij, 2) + pow(dZij, 2));
+            for(k = 0; k < 3; k++) {
+                Rij = xyz[i*3 + k] - xyz[j*3 + k];
+                force = 2*d*a * ( exp(-2*a*(dRij-ro)) - exp(-a*(dRij-ro)) ) * Rij / dRij;
+                // 
+                //printf("particle %ld interacts w %ld in %ld dim, force = %f\n", i, j, k, force);
+                f[3*i + k] += force;
+                f[3*j + k] -= force;
+            }
         }
-        // particle force elements
-        fx[i] += force_sum;
     }
-    return fx;
-}
-
-float* ComputeMorseForceY(long natoms, float *xyz, float *fy) {
-    // provide natoms for the shape of the following matrices:
-    //      - dy matrix size (natoms x natoms)
-    //      - dr matrix size (natoms x natoms)
-    //      - fx matrix size (natoms x natoms)
-    // return fy matrix
-    if(DBG) printf("\nComputeMorseForceY()\n");
-    float d = 1; float a = 1; float ro = 3.5; 
-    float val = 0; float force_sum;
-    float dx, dy, dz, dr;
-    long i, j;
-    // upper diagonal forces in matrix
-    for(i = 0; i < natoms; i++) {
-        force_sum = 0;
-        for(j = i + 1; j < natoms; j++) {
-            dx = xyz[i*3 + 0] - xyz[j*3 + 0];
-            dy = xyz[i*3 + 1] - xyz[j*3 + 1];
-            dz = xyz[i*3 + 2] - xyz[j*3 + 2];
-            dr = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
-            val = 2*d*a * ( exp(-2*a*(dr-ro)) - exp(-a*(dr-ro)) ) * dy / dr;
-            fy[j] -= val;
-            force_sum += val;
-        }
-        fy[i] += force_sum;
-    }
-    return fy;
-}
-
-float* ComputeMorseForceZ(long natoms, float *xyz, float *fz) {
-    // provide natoms for the shape of the following matrices:
-    //      - dz matrix size (natoms x natoms)
-    //      - dr matrix size (natoms x natoms)
-    //      - fz matrix size (natoms x natoms)
-    // return fz matrix
-    if(DBG) printf("\nComputeMorseForceZ()\n");
-    float d = 1; float a = 1; float ro = 3.5;
-    float val = 0; float force_sum;
-    float dx, dy, dz, dr;
-    long i, j;
-    // upper diagonal forces in matrix
-    for(i = 0; i < natoms; i++) {
-        force_sum = 0;
-        for(j = i + 1; j < natoms; j++) {
-            dx = xyz[i*3 + 0] - xyz[j*3 + 0];
-            dy = xyz[i*3 + 1] - xyz[j*3 + 1];
-            dz = xyz[i*3 + 2] - xyz[j*3 + 2];
-            dr = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
-            val = 2*d*a * ( exp(-2*a*(dr-ro)) - exp(-a*(dr-ro)) ) * dz / dr;
-            fz[j] -= val;
-            force_sum += val;
-        }
-        fz[i] += force_sum;
-    }
-    return fz;
+    return f;
 }
 
 // NEW POSITIONS
 
-float* ComputeNewX(long n, float* xyzmat, float* g, float* fxvec) {
-    // compute new x coorindate with new gamma and force computations
-    //      eqn: compute x^(k+1)[i] = x[i] + gammax[i]*fx[i]
-    // return new xyz (n x 3) coordinates
-    if(DBG) printf("\nComputeNewX()\n");
-    
-    long ndim = 3;
-    for(long i = 0; i<n; i++) {
-        xyzmat[i*ndim + 0] = xyzmat[i*ndim + 0] + g[i] * fxvec[i];
+float* ComputeNewPositions(long n, float* xyzvec, float* g, float* fvec) {
+    // compute evolved xyzvec
+    if(DBG) printf("ComputeNewPositions\n");
+    for(long i = 0; i < n; i++) {
+        xyzvec[i] = xyzvec[i] + g[i] * fvec[i];
     }
-    return xyzmat;
-}
-
-float* ComputeNewY(long n, float* xyzmat, float* g, float* fyvec) {
-    // compute new y coorindate with new gamma and force computations
-    //      eqn: compute y^(k+1)[i] = y[i] + gy * fy[i]
-    // return new xyz (n x 3) coordinates
-    if(DBG) printf("\nComputeNewY()\n");
-    
-    long ndim = 3;
-    for(long i = 0; i<n; i++) {
-        xyzmat[i*ndim + 1] = xyzmat[i*ndim + 1] + g[i] * fyvec[i];
-    }
-    return xyzmat;
-}
-
-float* ComputeNewZ(long n, float* xyzmat, float* g, float* fzvec) {
-    // compute new z coorindate with new gamma and force computations
-    //      eqn: compute z^(k+1)[i] = z[i] + gz * fz[i]
-    // return new xyz (n x 3) coordinates
-    if(DBG) printf("\nComputeNewZ()\n");
-
-    long ndim = 3;
-    for(long i = 0; i<n; i++) {
-        xyzmat[i*ndim + 2] = xyzmat[i*ndim + 2] + g[i] * fzvec[i];
-    }
-    return xyzmat;
+    return xyzvec;
 }
 
 // NEW GAMMA
@@ -651,66 +454,4 @@ float* ComputeNewGamma(long n, float* xyz, float* xyzold, float* g, float* fx, f
     }
     // return vector
     return g;
-}
-
-float ComputeNewGammaX(long n, float* xyz, float* xyzold, float gx, float* fx, float* fxold) {
-    // compute new gamma for x direction
-    //  expects xyz (natoms x 3) matrix
-    //  expects xyzold (natoms x 3) matrix
-    //  expects gx scalar
-    //  expects fx (natoms x 1) vector
-    //  expects fxold (natoms x 1) vector
-    if(DBG) printf("\nComputeNewGammaX()\n");
-    long i;
-    float dx, df;
-    float numerator_sum = 0;
-    float denominator_sum = 0;
-    for(i = 0; i < n; i++) {
-        dx = xyz[ i*3 + 0 ] - xyzold[ i*3 + 0 ];
-        df = fx[i]   - fxold[i];
-        numerator_sum += dx * df;
-        denominator_sum += pow(df, 2);
-        //printf("dx = %f df = %f\n", dx, df);
-    }
-    if((numerator_sum == 0) || (denominator_sum == 0)) return 0;
-    gx = numerator_sum / denominator_sum;
-    return gx;
-}
-
-float ComputeNewGammaY(long n, float* xyzmat, float* xyzmatold, float gy, float* fy, float* fyold) {
-    // compute new gamma for y direction
-    if(DBG) printf("\nComputeNewGammaY()\n");
-    long i; 
-    float dy, df;
-    float numerator_sum = 0; 
-    float denominator_sum = 0;
-    for(i = 0; i < n; i++) { 
-        dy = xyzmat[ i*3 + 1 ] - xyzmatold[ i*3 + 1 ];
-        df = fy[i]   - fyold[i];
-        numerator_sum += dy * df;
-        denominator_sum += pow(df, 2);
-        //printf("dy = %f df = %f\n", dy, df);
-    }
-    if((numerator_sum == 0) || (denominator_sum == 0)) return 0;
-    gy = numerator_sum / denominator_sum;
-    return gy;
-}
-
-float ComputeNewGammaZ(long n, float* xyzmat, float* xyzmatold, float gz, float* fz, float* fzold) {
-    // compute new gamma for z direction
-    if(DBG) printf("\nComputeNewGammaZ()\n");
-    long i; 
-    float dz, df;
-    float numerator_sum = 0;
-    float denominator_sum = 0;
-    for(i = 0; i < n; i++) {
-        dz = xyzmat[ i*3 + 2 ] - xyzmatold[ i*3 + 2 ];
-        df = fz[i]   - fzold[i];
-        numerator_sum += dz * df;
-        denominator_sum += pow(df, 2);
-        //printf("dz = %f df = %f\n", dz, df);
-    }
-    if((numerator_sum == 0) || (denominator_sum == 0)) return 0;
-    gz = numerator_sum / denominator_sum;
-    return gz;
 }
