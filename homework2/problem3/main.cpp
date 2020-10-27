@@ -10,7 +10,7 @@
 #include <mpi.h>
 #include "MersenneTwister.h"
 
-#define DBG 0
+#define DBG 1
 
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
@@ -36,9 +36,16 @@ int GetAbsMaxElementIndex(long n, long m, float* mat, long skip);
 // VECTOR OPERATIONS
 float* VectorFill(const long n, float *v, float val);
 
+// LU Decomposition
+float* FormIdentityMatrix(long n, float* A);
+float* LUDecomposition(long n, float* bjk);
+float* SolvePk(long n, float* Bjk, float* Pk, float* Fj);
+float* VectorScalarMultiplication(long n, float a, float* Xi, float* Ri);
+float* VectorAddition(long n, float* Xi, float* Yi, float* Ri);
+float* VectorSubtraction(long n, float* Xi, float* Yi, float* Ri);
+
 // GDA RELATED
 float* SetInitialGuessPositions(long n, long m, MTRand *, float* xyz, float* newxyz);
-float* ComputeGammaX(long n, long m, float* xyzmat, float* xyzmat0, float* gamma);
 float* MatrixCopy(long n, long m, float* x, float* y);
 float* VectorExtraction(long n, long m, float*, long, float*);
 
@@ -49,6 +56,8 @@ void Coords2XYZFile(long n, float* xyz, long index);
 void Results2File(long iter, float e, float maxf);
 
 // PHYSICS
+float* MorsePotential(long s, long e, float *r, float *ep);
+
 float* ComputeHessian(long natom, long ndim, float d, float* xyz, float* hij);
 
 float ComputeAMorsePotential(float rij);
@@ -56,115 +65,122 @@ float ComputeTotalMorsePotential(long natoms, float *xyz);
 
 //      a. FORCES
 float* ComputeMorseForces(long natoms, float *xyz, float *f);
-float* ComputeMorseForceX(long n, float *xyz, float *fx);
-float* ComputeMorseForceY(long n, float *xyz, float *fy);
-float* ComputeMorseForceZ(long n, float *xyz, float *fz);
 
 //      b. POSITION
-float* ComputeNewX(long n, float* xyzmat, float* g, float* fxmat);
-float* ComputeNewY(long n, float* xyzmat, float* g, float* fymat);
-float* ComputeNewZ(long n, float* xyzmat, float* g, float* fzmat);
+float* ComputeNewPositions(long natom_x_ndim, float* xyzvec, float* g, float* fvec);
 
-float* ComputeNewGamma(long n, float* xyz, float* xyzold, float* g, float* fx, float* fxo, float* fy, float* fyo, float* fz, float* fzo);
 
 int main(int argc, char** argv) {
     // setup and initialization
     long natoms = 32; long ndim = 3;    // make sure natoms matches the 
-                                       // number of atoms in .xyz file
+                                        // number of atoms in .xyz file
     long numruns = 1;
 
     //& coords
-    float *xyzmat_old = (float *) malloc(sizeof(float)*natoms*ndim);    // size (natom by ndim)
-    float *xyzmat = (float *) malloc(sizeof(float)*natoms*ndim);        // size (natom by ndim)
-    //& pair distance
-    float *dxvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
-    float *dyvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
-    float *dzvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
-    float *drvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by natom)
+    float *sXYZ = (float *) malloc(sizeof(float)*natoms*ndim);      // size (natom by ndim)
+    float *XYZ = (float *) malloc(sizeof(float)*natoms*ndim);       // size (natom by ndim)
     //& jacobian force matrix 
-    float *Fvec_old = (float *) malloc(sizeof(float)*ndim*natoms);      // size (natom by 1)
-    float *fxvec_old = (float *) malloc(sizeof(float)*natoms);  // size (natom by 1)
-    float *fyvec_old = (float *) malloc(sizeof(float)*natoms);  // size (natom by 1)
-    float *fzvec_old = (float *) malloc(sizeof(float)*natoms);  // size (natom by 1)
-    float *Fvec = (float *) malloc(sizeof(float)*ndim*natoms);  // size (natom by 1)
-    float *fxvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
-    float *fyvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
-    float *fzvec = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
-    float *maxfvec = (float *) malloc(sizeof(float)*ndim);      // size (ndim by 1)
-    //& hessian matrix
-    float *hij = (float *) malloc(sizeof(float)*ndim*natoms*ndim*natoms);// size (natom by 1)
+    float *Fj = (float *) malloc(sizeof(float)*natoms*ndim);        // size (natom by ndim)
     //& gamma vector
-    float *gamma = (float *) malloc(sizeof(float)*natoms);      // size (natom by 1)
-    float *g = (float *) malloc(sizeof(float)*natoms);          // size (natom by 1)
+    float *gamma = (float *) malloc(sizeof(float)*natoms*ndim);     // size (natom by ndim)
+    //& matrices
+    float *Bjk = (float *) malloc(sizeof(float)*natoms*ndim*natoms*ndim); // size (natom*ndim by natom*ndim)
+    //& vectors
+    float *Pk = (float *) malloc(sizeof(float)*natoms*ndim);        // size (natom by ndim)
+    float *Sk = (float *) malloc(sizeof(float)*natoms*ndim);        // size (natom by ndim)
     // random number generator
     unsigned long int now = static_cast<unsigned long int>(time(NULL));
     MTRand *mtrand = new MTRand(now);
 
     // read xyz positions and 
 
-    //readInput("coordinates/Test.xyz", natoms, xyzmat);
-    readInput("coordinates/Configuration.xyz", natoms, xyzmat);
+    //readInput("coordinates/Test.xyz", natoms, XYZ);
+    readInput("coordinates/Configuration.xyz", natoms, XYZ);
 
     // initial guess gamma values 
-    VectorFill(natoms, gamma, 0.01);
-    VectorFill(natoms, g, 0.01);
-    float ep, maxf;
+    VectorFill(natoms*ndim, gamma, 0.01);
+    VectorFill(natoms*ndim, Pk, 0);
+    FormIdentityMatrix(natoms*ndim, Bjk);
+    float ep, maxf; float alpha = 0.01;
     
     for(long n=0; n<numruns; n++) {
         printf("\n=======================");
         printf("\n__ iteration = %ld __\n", n);   
         printf("\n=======================\n");
-        MatrixCopy(natoms, ndim,   xyzmat, xyzmat_old);
-        MatrixCopy(natoms, ndim, Fvec,  Fvec_old);
+        printf("\n__XYZ_j__\n");
+        PrintMatrix(natoms*ndim, 1, XYZ);
 
         // clear all forces (n x 1)
-        ClearMatrix(natoms, 1, Fvec);
+        ClearMatrix(natoms, ndim, Fj);
         
         // compute total system energy
-        ep = ComputeTotalMorsePotential(natoms, xyzmat);
+        ep = ComputeTotalMorsePotential(natoms, XYZ);
         
-        // compute fx, fy, fz vector (n x 1)
-        ComputeMorseForces(natoms, xyzmat, Fvec);
+        /* step 0. 
+            compute fx, fy, fz vector (n x 1) */
+        ComputeMorseForces(natoms, XYZ, Fj);
 
+        /* step 1.
+            compose U matrix */
+        LUDecomposition(ndim*natoms, Bjk);
+        //printf("\n__U_MATRIX__\n");
+        //PrintMatrix(natoms*ndim, natoms*ndim, bjk);
+
+        /* step 2.
+            solve for Pk vector */
+        SolvePk(ndim*natoms, Bjk, Pk, Fj);
+
+        printf("\n__F_j__\n");
+        PrintMatrix(natoms*ndim, 1, Fj);
+        printf("\n__P_k__\n");
+        PrintMatrix(natoms*ndim, 1, Pk);
+
+        /* step 3. 
+            solve for Sk vector by scalar (alpha) and vector (Pk) product.
+            eqn: alpha * Pk = Sk*/
+        VectorScalarMultiplication(ndim*natoms, alpha, Pk, Sk);
+        printf("\n__S_k__\n");
+        PrintMatrix(natoms*ndim, 1, Sk);
+        
+        /* step 4.
+            solve for X_{k+1} */
+        VectorAddition(ndim*natoms, XYZ, Sk, sXYZ);
+        printf("\n__XYZ_j__\n");
+        PrintMatrix(natoms*ndim, 1, XYZ);
+        printf("\n__sXYZ_j__\n");
+        PrintMatrix(natoms*ndim, 1, sXYZ);
+
+        /* step ...
+            summary */
         printf("\n__EP__\n");
         printf("\n EP = %f\n", ep);
-        printf("\n__F_VECTOR__\n");
-        PrintMatrix(natoms, ndim, Fvec);
 
-        // compute new positions (returns new xyzmat)
-        /*ComputeNewX(natoms, xyzmat, gamma, fxvec); 
-        ComputeNewY(natoms, xyzmat, gamma, fyvec);
-        ComputeNewZ(natoms, xyzmat, gamma, fzvec);
-        */
+        // compute new positions (returns new XYZ matrix)
+        ComputeNewPositions(natoms*ndim, XYZ, gamma, Fj);
         
         // maximum force of all the components
-        int idMax = GetAbsMaxElementIndex(ndim, 1, Fvec, 1);
-        maxf = Fvec[idMax];
+        int idMax = GetAbsMaxElementIndex(natoms*ndim, 1, Fj, 1);
+        maxf = Fj[idMax];
 
         // show absolute maximum element
         //cout << std::scientific;
         cout.precision(2);
         cout << "================================";
-        cout << "\nAbs. Max force component is = ";
-        cout << Fvec[idMax] << "\n";
+        cout << "\nAbs. Max force component is = " << maxf << "\n";
 
-        Coords2XYZFile(natoms, xyzmat, n);
+        Coords2XYZFile(natoms, XYZ, n);
         if( !(n % 2) ) Results2File(n, ep, maxf);
-
         if(abs(maxf) < (1e-4) ) {
             break;
         }
     }
 
     // free memory 
-    free(xyzmat); free(xyzmat_old);
-    free(dxvec);    free(dyvec);     free(dzvec);     free(drvec); 
-    free(Fvec);     free(fxvec);     free(fyvec);     free(fzvec); 
-    free(Fvec_old); free(fxvec_old); free(fyvec_old); free(fzvec_old);
-    free(hij);
+    free(XYZ); free(sXYZ);
+    free(Fj); 
+    free(Bjk);
+    free(Pk); free(Sk);
     free(gamma);
-    free(g);
-    free(maxfvec);
     delete mtrand;
 }
 
@@ -242,15 +258,123 @@ int GetAbsMaxElementIndex(long n, long m, float *vec, long skip) {
 float* VectorFill(const long n, float *v, float val) {
     // fill vector with single value
     // return filled vector
-    if(__APPLE__) {
-        catlas_sset(n, val, v, 1);
-    } else {
-        for(int i=0; i<=n; i++) {
+    //if(__APPLE__) {
+    //    catlas_sset(n, val, v, 1);
+    //} else {
+        for(long i=0; i<n; i++) {
             v[i] = val;
         }
-    }
+    //}
     return v;
 }
+
+// LU Decomposition
+float* FormIdentityMatrix(long n, float* A) {
+    // form an identity matrix
+    long diag, index;
+    for(long i = 0; i < n; i++) {
+        diag = i * (n + 1);
+        for(long j = 0; j < n; j++) {
+            index = i*n + j;
+            if(index == diag) A[index] = 1;
+            else A[index] = 0;
+        }
+    }
+    return A;
+}
+
+float* LUDecomposition(long n, float* bjk) {
+    // recompose bjk matrix as upper triangular matrix from 
+    // bjk * pk = fj equation. this function determines U matrix.
+    // 'n' represents '3N' degrees of freedom.
+    if(DBG) printf("LUDecomposition()\n");
+    long i, j, k;
+    long index1, index2;
+    float c;
+    for(i = 0; i < n; i++) {
+        for(j = i + 1; j < n; j++) {
+            c = bjk[ i*n + j ] / bjk[ i*(n+1) ];
+            for(k = 0; k < n; k++) {
+                //printf("in + j bjk[%ld] = %f\n", i*n + j, bjk[i*n + j]);
+                //printf("i(n + 1) bjk[%ld] = %f\n", i*(n + 1), bjk[i*(n+1)]);
+                //printf("jn + k, bjk[%ld] = %f\n", j*n + k, bjk[j*n + k]);
+                bjk[j*n + k] = bjk[j*n + k] - bjk[i*n + k]*c;
+            }
+        }
+    }
+    return bjk;
+}
+
+float* SolvePk(long n, float* Bjk, float* Pk, float* Fj) {
+    /* solve the Aij Xi = Bj linear equation. in our case we are solving for vector Pk
+       Bjk Pk = -Del_j f(Xk) = Fj. Where Fj is our force vector {x1,y1,z1, x2,y2,z2,..., xn,yn,zn}
+
+       solve for B_j^(n-1) <- superscript is prime */
+    if(DBG) printf("SolvePk()\n");
+    long i, j, k;
+    for(i = 0; i < n; i++) {
+        Pk[i] = Fj[i];
+        for(j = 0; j < i; j++) {
+            Pk[i] = Pk[i] - Pk[j] * Bjk[i*n + j];
+            //printf("Pk[%ld] = %f Fj[%ld] = %f Bjk[%ld][%ld] = %f\n", i, Pk[i], i, Fj[i], i, j, Bjk[i*n + j]);
+        }
+    }
+
+    /* now we may be able to solve for Xi or Pk vectors
+        Xi = (Bi - sum_{i = j+1}^{n} Aij Xj) / Aii
+        
+        or
+
+        Pk = (Fj - sum_{i = j+1}^{n} Bjk Pk) / Bjj */
+    for(i = 0; i < n; i++) {
+        for(j = i + 1; j < n; j++) {
+            Pk[i] -= Bjk[ i*n + j ] * Pk[j];
+        }
+        Pk[i] = Pk[i] / Bjk[ i*(n+1) ];
+    }
+    return Pk;
+}
+
+float* VectorScalarMultiplication(long n, float a, float* Xi, float* Ri) {
+    /* Scale a vector Xi by scalar a and return result vector Ri */
+    if(__APPLE__) {
+        cblas_scopy(n, Xi, 1, Ri, 1);
+        cblas_sscal(n, a, Ri, 1);
+    } else {
+        for(long i = 0; i < n; i++) {
+            Ri[i] = a * Xi[i];
+        }
+    }
+    return Ri;
+}
+
+float* VectorAddition(long n, float* Xi, float* Yi, float* Ri) {
+    /* sum vectors Xi and Yi into Ri vector */
+    float scalar = 1; float inc = 1;
+    if(__APPLE__) {
+        cblas_scopy(n, Yi, 1, Ri, 1);
+        cblas_saxpy(n, scalar, Xi, inc, Ri, inc);
+    } else {
+        for(long i = 0; i < n; i++) {
+            Ri[i] = Yi[i] + Xi[i];
+        }
+    }
+    return Ri;
+}
+
+float* VectorSubtraction(long n, float* Xi, float* Yi, float* Ri) {
+    /* subtract Yi elements by Xi. Result Ri vector holds result */
+    float scalar = -1; float inc = 1;
+    if(__APPLE__) {
+        cblas_scopy(n, Yi, 1, Ri, 1);
+        cblas_saxpy(n, scalar, Xi, inc, Ri, inc);
+    } else {
+        for(long i = 0; i < n; i++) {
+            Ri[i] = Yi[i] - Xi[i];
+        }
+    }
+    return Ri;
+}   
 
 // GDA RELATED
 float* SetInitialGuessPositions(long n, long m, MTRand* mtrand, float* xyz, float* newxyz) {
@@ -286,14 +410,15 @@ void PrintMatrix(const long n, const long m, float *vec) {
     // print matrix
     for(long i = 0; i < n*m; i++) {
         //cout << std::scientific;
-        cout.precision(2);
-        cout << setw(8) << vec[i] << "\t\n";
+        cout.precision(4);
+        cout << setw(8) << i << "\t "<< vec[i] << "\t\n";
         //if( !((i+1)%m) ) { cout << "\n"; }
     }
 }
 
 void Coords2XYZFile(long n, float *xyz, long index) {
     // write coordinates to xyz file
+    if(DBG) printf("\nCoords2XYZFile()\n");
     string filename_xyz = "data/output.xyz";
     ofstream myfile;
     long i;
@@ -431,168 +556,14 @@ float* ComputeMorseForces(long natoms, float *xyz, float *f) {
     return f;
 }
 
-
-float* ComputeMorseForceX(long natoms, float *xyz, float *fx) {
-    // provide natoms for the shape of the following matrices:
-    //      - dx matrix size (natoms x natoms)
-    //      - dr matrix size (natoms x natoms)
-    //      - fx matrix size (natoms x natoms)
-    // return fx
-    if(DBG) printf("\nComputeMorseForceX()\n");
-    float d = 1; float a = 1; float ro = 3.5;
-    float val = 0; float force_sum;
-    float dx, dy, dz, dr;
-    long i, j;
-    // upper diagonal forces in matrix
-    for(i = 0; i < natoms; i++) {
-        force_sum = 0;
-        for(j = i + 1; j < natoms; j++) {
-            dx = xyz[i*3 + 0] - xyz[j*3 + 0];
-            dy = xyz[i*3 + 1] - xyz[j*3 + 1];
-            dz = xyz[i*3 + 2] - xyz[j*3 + 2];
-            dr = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
-            val = 2*d*a * ( exp(-2*a*(dr-ro)) - exp(-a*(dr-ro)) ) * dx / dr;
-            fx[j] -= val;
-            force_sum += val;
-        }
-        // particle force elements
-        fx[i] += force_sum;
-    }
-    return fx;
-}
-
-float* ComputeMorseForceY(long natoms, float *xyz, float *fy) {
-    // provide natoms for the shape of the following matrices:
-    //      - dy matrix size (natoms x natoms)
-    //      - dr matrix size (natoms x natoms)
-    //      - fx matrix size (natoms x natoms)
-    // return fy matrix
-    if(DBG) printf("\nComputeMorseForceY()\n");
-    float d = 1; float a = 1; float ro = 3.5; 
-    float val = 0; float force_sum;
-    float dx, dy, dz, dr;
-    long i, j;
-    // upper diagonal forces in matrix
-    for(i = 0; i < natoms; i++) {
-        force_sum = 0;
-        for(j = i + 1; j < natoms; j++) {
-            dx = xyz[i*3 + 0] - xyz[j*3 + 0];
-            dy = xyz[i*3 + 1] - xyz[j*3 + 1];
-            dz = xyz[i*3 + 2] - xyz[j*3 + 2];
-            dr = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
-            val = 2*d*a * ( exp(-2*a*(dr-ro)) - exp(-a*(dr-ro)) ) * dy / dr;
-            fy[j] -= val;
-            force_sum += val;
-        }
-        fy[i] += force_sum;
-    }
-    return fy;
-}
-
-float* ComputeMorseForceZ(long natoms, float *xyz, float *fz) {
-    // provide natoms for the shape of the following matrices:
-    //      - dz matrix size (natoms x natoms)
-    //      - dr matrix size (natoms x natoms)
-    //      - fz matrix size (natoms x natoms)
-    // return fz matrix
-    if(DBG) printf("\nComputeMorseForceZ()\n");
-    float d = 1; float a = 1; float ro = 3.5;
-    float val = 0; float force_sum;
-    float dx, dy, dz, dr;
-    long i, j;
-    // upper diagonal forces in matrix
-    for(i = 0; i < natoms; i++) {
-        force_sum = 0;
-        for(j = i + 1; j < natoms; j++) {
-            dx = xyz[i*3 + 0] - xyz[j*3 + 0];
-            dy = xyz[i*3 + 1] - xyz[j*3 + 1];
-            dz = xyz[i*3 + 2] - xyz[j*3 + 2];
-            dr = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
-            val = 2*d*a * ( exp(-2*a*(dr-ro)) - exp(-a*(dr-ro)) ) * dz / dr;
-            fz[j] -= val;
-            force_sum += val;
-        }
-        fz[i] += force_sum;
-    }
-    return fz;
-}
-
 // NEW POSITIONS
 
-float* ComputeNewX(long n, float* xyzmat, float* g, float* fxvec) {
-    // compute new x coorindate with new gamma and force computations
-    //      eqn: compute x^(k+1)[i] = x[i] + gammax[i]*fx[i]
-    // return new xyz (n x 3) coordinates
-    if(DBG) printf("\nComputeNewX()\n");
-    
-    long ndim = 3;
-    for(long i = 0; i<n; i++) {
-        xyzmat[i*ndim + 0] = xyzmat[i*ndim + 0] + g[i] * fxvec[i];
+float* ComputeNewPositions(long n, float* xyzvec, float* g, float* fvec) {
+    // compute evolved xyzvec
+    if(DBG) printf("ComputeNewPositions\n");
+    for(long i = 0; i < n; i++) {
+        xyzvec[i] = xyzvec[i] + g[i] * fvec[i];
     }
-    return xyzmat;
-}
-
-float* ComputeNewY(long n, float* xyzmat, float* g, float* fyvec) {
-    // compute new y coorindate with new gamma and force computations
-    //      eqn: compute y^(k+1)[i] = y[i] + gy * fy[i]
-    // return new xyz (n x 3) coordinates
-    if(DBG) printf("\nComputeNewY()\n");
-    
-    long ndim = 3;
-    for(long i = 0; i<n; i++) {
-        xyzmat[i*ndim + 1] = xyzmat[i*ndim + 1] + g[i] * fyvec[i];
-    }
-    return xyzmat;
-}
-
-float* ComputeNewZ(long n, float* xyzmat, float* g, float* fzvec) {
-    // compute new z coorindate with new gamma and force computations
-    //      eqn: compute z^(k+1)[i] = z[i] + gz * fz[i]
-    // return new xyz (n x 3) coordinates
-    if(DBG) printf("\nComputeNewZ()\n");
-
-    long ndim = 3;
-    for(long i = 0; i<n; i++) {
-        xyzmat[i*ndim + 2] = xyzmat[i*ndim + 2] + g[i] * fzvec[i];
-    }
-    return xyzmat;
-}
-
-// NEW GAMMA
-
-float* ComputeNewGamma(long n, float* xyz, float* xyzold, float* g, float* fx, float* fxo, float* fy, float* fyo, float* fz, float* fzo) {
-    // compute new gamma for x direction
-    //  expects xyz (natoms x 3) matrix
-    //  expects xyzold (natoms x 3) matrix
-    //  expects g (natoms x 1) vec
-    //  expects fx (natoms x 1) vector
-    //  expects fxold (natoms x 1) vector
-    //  expects fy (natoms x 1) vector
-    //  expects fyold (natoms x 1) vector
-    //  expects fz (natoms x 1) vector
-    //  expects fzold (natoms x 1) vector
-    if(DBG) printf("\nComputeNewGamma()\n");
-    long i;
-    float dx, dy, dz, dfx, dfy, dfz;
-    float numerator = 0;
-    float denominator = 0;
-    for(i = 0; i < n; i++) {
-        dx = xyz[ i*3 + 0 ] - xyzold[ i*3 + 0 ];
-        dy = xyz[ i*3 + 1 ] - xyzold[ i*3 + 1 ];
-        dz = xyz[ i*3 + 2 ] - xyzold[ i*3 + 2 ];
-        dfx = fx[i] - fxo[i];
-        dfy = fy[i] - fyo[i];
-        dfz = fz[i] - fzo[i];
-        numerator = abs(dx * dfx + dy * dfy + dz * dfz);
-        denominator = pow(dfx, 2) + pow(dfy, 2) + pow(dfz, 2);
-        if((numerator == 0) || (denominator == 0)) {
-             g[i] = 0;
-             continue;
-        }
-        g[i] = numerator / denominator;
-        //printf("g[%ld] = %f\n", i, g[i]);
-    }
-    // return vector
-    return g;
+    return xyzvec;
 }
 
