@@ -10,11 +10,29 @@
 #include <mpi.h>
 #include "MersenneTwister.h"
 
+#if defined(__LP64__) /* In LP64 match sizes with the 32 bit ABI */
+typedef int 		__CLPK_integer;
+typedef int 		__CLPK_logical;
+typedef float 		__CLPK_real;
+typedef double 		__CLPK_doublereal;
+typedef __CLPK_logical 	(*__CLPK_L_fp)();
+typedef int 		__CLPK_ftnlen;
+#else
+typedef long int 	__CLPK_integer;
+typedef long int 	__CLPK_logical;
+typedef float 		__CLPK_real;
+typedef double 		__CLPK_doublereal;
+typedef __CLPK_logical 	(*__CLPK_L_fp)();
+typedef long int 	__CLPK_ftnlen;
+#endif
+
 #define DBG 0
 #define PNT 0
 
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
+typedef __CLPK_doublereal doublereal;
+typedef __CLPK_integer integer;
 #else
 #include <cblas.h>
 #endif
@@ -80,17 +98,17 @@ float* ComputeNewPositions(long natom_x_ndim, float* xyzvec, float* g, float* fv
 int main(int argc, char** argv) {
     // setup and initialization
     long natoms = 32; long ndim = 3; // make sure natoms matches the number of atoms in .xyz file
-    long n = ndim * natoms;
-    long numruns = 4;
+    int n = ndim * natoms;
+    long numruns = 9;
 
+    double *vec = (double*) malloc(n*sizeof(double));
+    double *mat = (double*) malloc(n*n*sizeof(double));
     //& coords
     float *sXYZ = (float *) malloc(sizeof(float)*n);    // size (natom by ndim)
     float *XYZ = (float *) malloc(sizeof(float)*n);     // size (natom by ndim)
     //& jacobian force matrix 
     float *Fj = (float *) malloc(sizeof(float)*n);      // size (natom by ndim)
     float *FjShift = (float *) malloc(sizeof(float)*n); // size (natom by ndim)
-    //& gamma vector
-    float *gamma = (float *) malloc(sizeof(float)*n);   // size (natom by ndim)
     //& matrices
     float *Bjk = (float *) malloc(sizeof(float)*n*n);   // size (natom*ndim by natom*ndim)
     float *Cjk = (float *) malloc(sizeof(float)*n*n);   // size (natom*ndim by natom*ndim)
@@ -101,6 +119,7 @@ int main(int argc, char** argv) {
     float *Sk = (float *) malloc(sizeof(float)*n);      // size (natom by ndim)
     float *Yk = (float *) malloc(sizeof(float)*n);      // size (natom by ndim)
     float *Dk = (float *) malloc(sizeof(float)*n);      // size (natom by ndim)
+    int *pivot = (int *) malloc(sizeof(int)*n);      // size (natom by ndim)
     // random number generator
     unsigned long int now = static_cast<unsigned long int>(time(NULL));
     MTRand *mtrand = new MTRand(now);
@@ -110,7 +129,6 @@ int main(int argc, char** argv) {
 
     // initialize vectors
     FormIdentityMatrix(n, Bjk);
-    VectorFill(n, gamma, 0.01);
     VectorFill(n, Pk, 0);
     VectorFill(n, Yk, 0);
     VectorFill(n*n, Cjk, 0);
@@ -121,68 +139,68 @@ int main(int argc, char** argv) {
     float alpha = 0.001;
 
     for(long iter = 0; iter < numruns; iter++) {
+        long nshow = 5; // n
         printf("\n=======================");
         printf("\n__ iteration = %ld __\n", iter);   
         printf("\n=======================\n");
         if(PNT) printf("\n__XYZ_j__\n");
-        if(PNT) PrintMatrix(n, 1, XYZ);
+        if(PNT) PrintMatrix(nshow, 1, XYZ);
 
-        // clear all forces (n x 1)
+        /* step 0. clear all forces (n by 1) */
+        ClearMatrix(n*n, 1, Cjk);
+        ClearMatrix(n*n, 1, Djk);
+        ClearMatrix(n*n, 1, Ejk);
         ClearMatrix(n, 1, Fj);
         ClearMatrix(n, 1, FjShift);
         
-        // compute total system energy
-        ep = ComputeTotalMorsePotential(natoms, XYZ);
-        
-        /* step 0. 
-            compute fx, fy, fz vector (n x 1)                               */
+        /* step 1. compute fx, fy, fz vector (n by 1) */
         ComputeMorseForces(natoms, XYZ, Fj);
 
-        /* step 1.
-            compose U matrix                                                */
-        LUDecomposition(n, Bjk);
+        /* step 2. solve for Pk vector */
+        int err; int nrhs = 1;
+        cblas_scopy(n, Fj, 1, Pk, 1);
+        for(long q = 0; q < n*n; q++) mat[q] = Bjk[q]; 
+        for(long q = 0; q < n; q++) vec[q] = Fj[q];
+        dgesv_(&n, &nrhs, mat, &n, pivot, vec, &n, &err);
+        for(long q = 0; q < n*n; q++) Bjk[q] = mat[q]; 
+        for(long q = 0; q < n; q++) Pk[q] = vec[q];
+        if(err > 0) printf("factorization has been completed (U is exactly singular)\n");
+        if(err < 0) printf("argument had an illegal value\n");
         
-        if(PNT) printf("\n__U_MATRIX__\n");
-        if(PNT) PrintMatrix(n, n, Bjk);
-
-        /* step 2.
-            solve for Pk vector                                             */
-        SolvePk(n, Bjk, Pk, Fj);
+        if(PNT) printf("\n__mat__\n");
+        if(PNT) for(long q = 0; q < nshow; q++) printf("%ld %lf\n", q, mat[q]);
+        if(PNT) printf("\n__vec__\n");
+        if(PNT) for(long q = 0; q < nshow; q++) printf("%ld %lf\n", q, vec[q]);
         
-        if(PNT) printf("n = %ld\n", n);
+        if(1) printf("\n__B_jk_start__\n");
+        if(1) PrintMatrix(nshow, 1, Bjk);
         if(PNT) printf("\n__F_j__\n");
-        if(PNT) PrintMatrix(n, 1, Fj);
+        if(PNT) PrintMatrix(nshow, 1, Fj);
         if(PNT) printf("\n__P_k__\n");
-        if(PNT) PrintMatrix(n, 1, Pk);
+        if(PNT) PrintMatrix(nshow, 1, Pk);
 
-        /* step 3. 
-            solve for Sk vector by scalar (alpha) and vector (Pk) product.
-            eqn: alpha * Pk = Sk                                            */
+        /* step 3. solve for Sk = alpha * Pk */
         VectorScalarProduct(n, alpha, Pk, Sk);
         
         if(PNT) printf("\n__S_k__\n");
-        if(PNT) PrintMatrix(n, 1, Sk);
+        if(PNT) PrintMatrix(nshow, 1, Sk);
         
-        /* step 4.
-            solve for X_k+1 evolved position.
-            eqn: Xk+1 = Xk + Sk                                             */
+        /* step 4. solve for Xk+1 = Xk + Sk evolved position */
         VectorAddition(n, XYZ, Sk, sXYZ);
         
         if(PNT) printf("\n__XYZ_j__\n");
-        if(PNT) PrintMatrix(n, 1, XYZ);
+        if(PNT) PrintMatrix(nshow, 1, XYZ);
         if(PNT) printf("\n__sXYZ_j__\n");
-        if(PNT) PrintMatrix(n, 1, sXYZ);
+        if(PNT) PrintMatrix(nshow, 1, sXYZ);
 
-        /* step 5.
-            solve for Yk vector
-            Yk = -FjShifted + Fj                                            */
+        /* step 5. solve for Yk = -FjShifted + Fj */
         ComputeMorseForces(natoms, sXYZ, FjShift);
         VectorSubtraction(n, FjShift, Fj, Yk);
         
         if(PNT) printf("\n__F_jShift__\n");
-        if(PNT) PrintMatrix(n, 1, FjShift);
-        if(PNT) printf("\n__Y_k__\n");
-        if(PNT) PrintMatrix(n, 1, Yk);
+        if(PNT) PrintMatrix(nshow, 1, FjShift);
+        if(1) printf("\n__Y_k__\n");
+        if(1) PrintMatrix(nshow, 1, Yk);
 
         /* step 6. 
             solve for Bjk' = Bjk + (Yk YkT) / (YkT Sk) + (Bjk Sk SkT BjkT) / (SjT Bjk Sj)
@@ -192,66 +210,71 @@ int main(int argc, char** argv) {
                       Bjk' = Bjk + Cjk                 + Djk / d            
                       Bjk' = Bjk + Cjk                 + Djk                */
         
-        /* solve for c (second term denominator) */
+        /* step 6.1 solve for c (second term denominator) */
         c = VectorDotProduct(n, Yk, Sk); 
         
-        if(PNT) printf("\n__C__ = %f\n", c);
+        if(1) printf("\n__C__ = %f\n", c);
         
-        /* solve for Cjk (second term numerator) */
-        VectorOuterProduct(n, Yk, Yk, Cjk);
+        /* step 6.2 solve for Cjk (second term numerator) */
+        //VectorOuterProduct(n, Yk, Yk, Cjk);
+        cblas_sger(CblasRowMajor, n, n, 1, Yk, 1, Yk, 1, Cjk, n);
         VectorScalarProduct(n*n, 1/c, Cjk, Cjk);
         
-        if(PNT) printf("\n__C_jk__\n");
-        if(PNT) PrintMatrix(n, n, Cjk);
+        if(1) printf("\n__C_jk__\n");
+        if(1) PrintMatrix(nshow, 1, Cjk);
         
-        /* solve for Dj and then d (third term denominator) */
+        /* step 6.3 solve for Dk and then scalar d (third term denominator) */
         MatrixVectorProduct(n, Bjk, Sk, Dk);
         d = VectorDotProduct(n, Sk, Dk);
         
-        if(PNT) printf("\n__D__ = %f\n", d);
+        if(1) printf("\n__D__ = %f\n", d);
         
-        /* solve for Djk (third term numerator) */
+        /* step 6.4 solve for Ejk (third term numerator) */
         MatrixVectorProduct(n, Bjk, Sk, Dk);
         VectorOuterProduct(n, Sk, Dk, Djk);     // here Djk is nonzero
         MatrixMatrixProduct(n, Bjk, Djk, Ejk);  // here Djk is zero
         VectorScalarProduct(n*n, 1/d, Ejk, Ejk);
 
-        if(PNT) printf("\n__E_jk__\n");
-        if(PNT) PrintMatrix(n, n, Ejk);
+        if(1) printf("\n__E_jk__\n");
+        if(1) PrintMatrix(nshow, 1, Ejk);
 
-        /* step 8.
-                    potential energy summary                                */
+        /* step 7. Bj+1 = Bjk + Cjk + Djk */
+        float scalar = 1; long stride = 1;
+        cblas_saxpy(n*n, scalar, Cjk, stride, Bjk, stride);
+        cblas_saxpy(n*n, scalar, Ejk, stride, Bjk, stride);
+        if(1) printf("\n__B_jk_FINAL__\n");
+        if(1) PrintMatrix(nshow, 1, Bjk);
+
+        /* step 8. potential energy summary */
         ep = ComputeTotalMorsePotential(natoms, XYZ);
         printf("\n__EP__\n");
-        printf("\n EP = %f\n", ep);
+        printf("\nEP = %f\n", ep);
 
-        /* step 9. 
-                    maximum force of all the components */
-        int idMax = GetAbsMaxElementIndex(natoms*ndim, 1, Fj, 1);
+        /* step 9. save shifted xyz to xyz */
+        cblas_scopy(n, sXYZ, 1, XYZ, 1);
+
+        /* step 10. maximum force of all the components */
+        int idMax = GetAbsMaxElementIndex(n, 1, Fj, 1);
         maxf = Fj[idMax];
 
         //cout << std::scientific;
         cout.precision(2);
         cout << "\nAbs. Max force component is = " << maxf << "\n";
 
-        Coords2XYZFile(natoms, XYZ, n);
-        if( !(n % 2) ) Results2File(n, ep, maxf);
+        Coords2XYZFile(natoms, XYZ, iter);
+        if( !(n % 2) ) Results2File(iter, ep, maxf);
         if(abs(maxf) < (1e-4) ) {
             break;
         }
-
-        /* step 7.
-                    copy Ejk to Bjk for Pk evolution in next iteration */
-        MatrixCopy(n, n, Ejk, Bjk);
-        MatrixCopy(natoms, ndim, sXYZ, XYZ);
     }
 
     // free memory 
+    free(vec); free(mat);
     free(XYZ); free(sXYZ);
     free(Fj); free(FjShift); 
     free(Bjk); free(Cjk); free(Djk); free(Dk); free(Ejk);
-    free(Pk);  free(Sk); free(Yk);
-    free(gamma);
+    free(Pk);  free(Sk); free(Yk); 
+    free(pivot);
     delete mtrand;
 }
 
@@ -401,6 +424,7 @@ float* SolvePk(long n, float* Bjk, float* Pk, float* Fj) {
         for(j = i + 1; j < n; j++) {
             Pk[i] -= Bjk[ i*n + j ] * Pk[j];
         }
+        printf("Bjk[ i*(n+1) ] = %f\n", Bjk[ i*(n+1) ]);
         Pk[i] = Pk[i] / Bjk[ i*(n+1) ];
     }
     return Pk;
