@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
     // setup and initialization
     long natoms = 32; long ndim = 3; // make sure natoms matches the number of atoms in .xyz file
     int n = ndim * natoms;
-    long numruns = 9;
+    long numruns = 11;
 
     double *vec = (double*) malloc(n*sizeof(double));
     double *mat = (double*) malloc(n*n*sizeof(double));
@@ -136,15 +136,13 @@ int main(int argc, char** argv) {
 
     // initialize scalars
     float ep, maxf; float c = 0; float d = 0;
-    float alpha = 0.001;
+    float alpha = 0.01;
 
     for(long iter = 0; iter < numruns; iter++) {
         long nshow = 5; // n
         printf("\n=======================");
         printf("\n__ iteration = %ld __\n", iter);   
         printf("\n=======================\n");
-        if(PNT) printf("\n__XYZ_j__\n");
-        if(PNT) PrintMatrix(nshow, 1, XYZ);
 
         /* step 0. clear all forces (n by 1) */
         ClearMatrix(n*n, 1, Cjk);
@@ -168,84 +166,42 @@ int main(int argc, char** argv) {
         if(err > 0) printf("factorization has been completed (U is exactly singular)\n");
         if(err < 0) printf("argument had an illegal value\n");
         
-        if(PNT) printf("\n__mat__\n");
-        if(PNT) for(long q = 0; q < nshow; q++) printf("%ld %lf\n", q, mat[q]);
-        if(PNT) printf("\n__vec__\n");
-        if(PNT) for(long q = 0; q < nshow; q++) printf("%ld %lf\n", q, vec[q]);
-        
-        if(1) printf("\n__B_jk_start__\n");
-        if(1) PrintMatrix(nshow, 1, Bjk);
-        if(PNT) printf("\n__F_j__\n");
-        if(PNT) PrintMatrix(nshow, 1, Fj);
-        if(PNT) printf("\n__P_k__\n");
-        if(PNT) PrintMatrix(nshow, 1, Pk);
-
         /* step 3. solve for Sk = alpha * Pk */
         VectorScalarProduct(n, alpha, Pk, Sk);
-        
-        if(PNT) printf("\n__S_k__\n");
-        if(PNT) PrintMatrix(nshow, 1, Sk);
         
         /* step 4. solve for Xk+1 = Xk + Sk evolved position */
         VectorAddition(n, XYZ, Sk, sXYZ);
         
-        if(PNT) printf("\n__XYZ_j__\n");
-        if(PNT) PrintMatrix(nshow, 1, XYZ);
-        if(PNT) printf("\n__sXYZ_j__\n");
-        if(PNT) PrintMatrix(nshow, 1, sXYZ);
-
         /* step 5. solve for Yk = -FjShifted + Fj */
         ComputeMorseForces(natoms, sXYZ, FjShift);
         VectorSubtraction(n, FjShift, Fj, Yk);
         
-        if(PNT) printf("\n__F_jShift__\n");
-        if(PNT) PrintMatrix(nshow, 1, FjShift);
-        if(1) printf("\n__Y_k__\n");
-        if(1) PrintMatrix(nshow, 1, Yk);
-
         /* step 6. 
             solve for Bjk' = Bjk + (Yk YkT) / (YkT Sk) + (Bjk Sk SkT BjkT) / (SjT Bjk Sj)
                       Bjk' = Bjk + Cjk / c             + (Bjk Sk Bjk Sk) / (SjT Dk)
                       Bjk' = Bjk + Cjk                 + (Bjk Sk Dk) / d
                       Bjk' = Bjk + Cjk                 + (Bjk Djk) / d
-                      Bjk' = Bjk + Cjk                 + Djk / d            
-                      Bjk' = Bjk + Cjk                 + Djk                */
+                      Bjk' = Bjk + Cjk                 + Ejk / d            
+                      Bjk' = Bjk + Cjk                 + Ejk                */
         long stride = 1; float a = 1; float b = 0;
         /* step 6.1 solve for c (second term denominator) */
         c = VectorDotProduct(n, Yk, Sk); 
         
-        if(1) printf("\n__C__ = %f\n", c);
-        
         /* step 6.2 solve for Cjk (second term numerator) */
-        //VectorOuterProduct(n, Yk, Yk, Cjk);
-        cblas_sger(CblasRowMajor, n, n, 1, Yk, 1, Yk, 1, Cjk, n);
+        cblas_sger(CblasRowMajor, n, n, 1, Yk, 1, Yk, 1, Cjk, n); // Rij = a Xi Yj + Rij
         VectorScalarProduct(n*n, 1/c, Cjk, Cjk);
-        
-        if(1) printf("\n__C_jk__\n");
-        if(1) PrintMatrix(nshow, 1, Cjk);
         
         /* step 6.3 solve for Dk and then scalar d (third term denominator) */
         cblas_sgemv(CblasRowMajor, CblasNoTrans, n, n, a, Bjk, n, Sk, stride, b, Dk, stride); // Dk = a Bjk Sk + b Dk
         d = VectorDotProduct(n, Sk, Dk);
         
-        if(1) printf("\n__D__ = %f\n", d);
-        
         /* step 6.4 solve for Ejk (third term numerator) */
-        //VectorOuterProduct(n, Sk, Dk, Djk);     // here Djk is nonzero
+        ClearMatrix(n, n, Djk);
+        ClearMatrix(n, n, Ejk);
         cblas_sger(CblasRowMajor, n, n, a, Sk, stride, Dk, stride, Djk, n); // Rij = a Xi Yj + Rij
 
-        if(1) printf("\n__D_jk__\n");
-        if(1) PrintMatrix(nshow, 1, Djk);
-        
-        MatrixMatrixProduct(n, Bjk, Djk, Ejk);  // here Djk is zero
-        
-        if(1) printf("\n__B_jk__\n");
-        if(1) PrintMatrix(nshow, 1, Bjk);
-        
-        VectorScalarProduct(n*n, 1/d, Ejk, Ejk);
-
-        if(1) printf("\n__E_jk__\n");
-        if(1) PrintMatrix(nshow, 1, Ejk);
+        cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n, n, n, a, Bjk, n, Djk, n, b, Ejk, n); // Ejk = a Bjk Djk + b Ejk
+        cblas_sscal(n*n, 1/d, Ejk, 1); // Ejk / d
 
         /* step 7. Bj+1 = Bjk + a Cjk + a Djk */
         cblas_saxpy(n*n, a, Cjk, stride, Bjk, stride);
@@ -260,16 +216,12 @@ int main(int argc, char** argv) {
 
         /* step 9. save shifted xyz to xyz */
         cblas_scopy(n, sXYZ, 1, XYZ, 1);
-        if(1) printf("\n__XYZ_FINAL__\n");
-        if(1) PrintMatrix(nshow, 1, XYZ);
 
         /* step 10. maximum force of all the components */
         int idMax = GetAbsMaxElementIndex(n, 1, Fj, 1);
         maxf = Fj[idMax];
-
-        //cout << std::scientific;
-        cout.precision(2);
-        cout << "\nAbs. Max force component is = " << maxf << "\n";
+        printf("\n__MAX_F__");
+        printf("\n F = %f\n", maxf);
 
         Coords2XYZFile(natoms, XYZ, iter);
         if( !(n % 2) ) Results2File(iter, ep, maxf);
