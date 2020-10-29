@@ -150,6 +150,7 @@ int main(int argc, char** argv) {
         ClearMatrix(n*n, 1, Cjk);
         ClearMatrix(n*n, 1, Djk);
         ClearMatrix(n*n, 1, Ejk);
+        ClearMatrix(n, 1, Dk);
         ClearMatrix(n, 1, Fj);
         ClearMatrix(n, 1, FjShift);
         
@@ -209,7 +210,7 @@ int main(int argc, char** argv) {
                       Bjk' = Bjk + Cjk                 + (Bjk Djk) / d
                       Bjk' = Bjk + Cjk                 + Djk / d            
                       Bjk' = Bjk + Cjk                 + Djk                */
-        
+        long stride = 1; float a = 1; float b = 0;
         /* step 6.1 solve for c (second term denominator) */
         c = VectorDotProduct(n, Yk, Sk); 
         
@@ -224,24 +225,31 @@ int main(int argc, char** argv) {
         if(1) PrintMatrix(nshow, 1, Cjk);
         
         /* step 6.3 solve for Dk and then scalar d (third term denominator) */
-        MatrixVectorProduct(n, Bjk, Sk, Dk);
+        cblas_sgemv(CblasRowMajor, CblasNoTrans, n, n, a, Bjk, n, Sk, stride, b, Dk, stride); // Dk = a Bjk Sk + b Dk
         d = VectorDotProduct(n, Sk, Dk);
         
         if(1) printf("\n__D__ = %f\n", d);
         
         /* step 6.4 solve for Ejk (third term numerator) */
-        MatrixVectorProduct(n, Bjk, Sk, Dk);
-        VectorOuterProduct(n, Sk, Dk, Djk);     // here Djk is nonzero
+        //VectorOuterProduct(n, Sk, Dk, Djk);     // here Djk is nonzero
+        cblas_sger(CblasRowMajor, n, n, a, Sk, stride, Dk, stride, Djk, n); // Rij = a Xi Yj + Rij
+
+        if(1) printf("\n__D_jk__\n");
+        if(1) PrintMatrix(nshow, 1, Djk);
+        
         MatrixMatrixProduct(n, Bjk, Djk, Ejk);  // here Djk is zero
+        
+        if(1) printf("\n__B_jk__\n");
+        if(1) PrintMatrix(nshow, 1, Bjk);
+        
         VectorScalarProduct(n*n, 1/d, Ejk, Ejk);
 
         if(1) printf("\n__E_jk__\n");
         if(1) PrintMatrix(nshow, 1, Ejk);
 
-        /* step 7. Bj+1 = Bjk + Cjk + Djk */
-        float scalar = 1; long stride = 1;
-        cblas_saxpy(n*n, scalar, Cjk, stride, Bjk, stride);
-        cblas_saxpy(n*n, scalar, Ejk, stride, Bjk, stride);
+        /* step 7. Bj+1 = Bjk + a Cjk + a Djk */
+        cblas_saxpy(n*n, a, Cjk, stride, Bjk, stride);
+        cblas_saxpy(n*n, a, Ejk, stride, Bjk, stride);
         if(1) printf("\n__B_jk_FINAL__\n");
         if(1) PrintMatrix(nshow, 1, Bjk);
 
@@ -252,6 +260,8 @@ int main(int argc, char** argv) {
 
         /* step 9. save shifted xyz to xyz */
         cblas_scopy(n, sXYZ, 1, XYZ, 1);
+        if(1) printf("\n__XYZ_FINAL__\n");
+        if(1) PrintMatrix(nshow, 1, XYZ);
 
         /* step 10. maximum force of all the components */
         int idMax = GetAbsMaxElementIndex(n, 1, Fj, 1);
