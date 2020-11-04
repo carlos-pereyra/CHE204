@@ -80,18 +80,18 @@ void Results2File(long iter, float e, float maxf);
 double MorsePotential(double xi, double xj);
 double ComputeTotalMorsePotential(long natoms, double *xyz);
 
-float* ComputeHessian(long natom, long ndim, float d, float* xyz, float* hij);
-float ComputeAMorsePotential(float rij);
-
-//      a. FORCES
+// FORCES
+double MorseForce(double xi, double xj, double rij);
 double* ComputeMorseForces(long natoms, double *xyz, double *f);
 
+// HESSIAN
+double* ComputeHessian(long n, double* x, double* hij);
 
 int main(int argc, char** argv) {
     // setup and initialization
     long natoms = 32; long ndim = 3; // make sure natoms matches the number of atoms in .xyz file
     long n = ndim * natoms;
-    long numruns = 10;
+    long numruns = 1100;
     double mem;
 
     /*
@@ -262,65 +262,30 @@ int main(int argc, char** argv) {
     }
 
     /*
-     * FORCE CONSTANT MATRIX
-     */
-    double h = 0.01; a = 1; b = 1;
-
-    /*
-     * DETERMINE F(Xi+h)
-     */
-    
-    // dxi = h
-    catlas_dset(n, h, dXYZi, stride);                       // dXYZi = h
-    // xi+h = xi + dxi
-    catlas_daxpby(n, a, dXYZi, stride, b, XYZi, stride);    // XYZi = a dXYZi + b XYZi
-    // Fi(xi+h)
-    ComputeMorseForces(natoms, XYZi, Fi_ph);
-
-    /*
-     * DETERMINE F(Xi-h)
-     */
-    
-    // xi-h = (xi + dxi)- 2dxi >> xi-h = xi - dxi
-    a = -2;
-    catlas_daxpby(n, a, dXYZi, stride, b, XYZi, stride);    // XYZi = a dXYZi + b XYZi
-    // Fi(xi-h)
-    ComputeMorseForces(natoms, XYZi, Fi_mh);
-
-    /*
-     * COMPUTE 
+     * COMPUTE HESSIAN
      *          Kij = d''V / dxi dxj
      *
-     * NUMERICAL SECOND DERIVATIVE 
-     *  
-     *          Kij = (Fi(xi+h) - Fi(xi-h)) / h
+     * CENTRAL SECOND DERIVATIVE 
+     *          Kij = (-Fi(xi+h) - -Fi(xi-h)) / dx
      * 
      */
-    for(long i = 0; i < n; i++) {
-        for(long j = i + 1; j < n; j++) {
-            // Hij = Hji
-            Kij[i*n + j] = (Fi_ph[i] - Fi_mh[j]) / dXYZi[j];
-            Kij[j*n + i] = (Fi_ph[i] - Fi_mh[j]) / dXYZi[j];
-        }
-    }
-    if(1) printf("\n__K_ij__\n");
+    ComputeHessian(n, XYZi, Kij);
+    if(1) printf("\n__H_ij__\n");
     if(1) PrintMatrix(n*n, 1, Kij);
-
+    
     /*
      * FREE MEMORY
      */
     printf("\nfree %lf (kB)\n", mem / 1000.);
 
-    // GEOMETRY OPTIMIZATION
-    free(XYZi); free(SXYZi);
+    free(XYZi); free(SXYZi);    // GEOMETRY OPTIMIZATION
     free(Fj); free(FjShift);
     free(Bjk); free(Cjk); free(Djk); free(Ejk);
     free(Pk);  free(Sk); free(Yk); free(Dk);
-    // NORMAL MODES
-    free(Kij); 
+    
+    free(Kij);                  // NORMAL MODES 
     free(dXYZi); 
     free(Fi_ph); free(Fi_mh);
-    mem = 0;
 }
 
 // INITIALIZATION
@@ -684,35 +649,9 @@ void Results2File(long iter, float e, float maxf) {
     myfile.close();
 }
 
-// SEPARATION DISTANCES
-
-float* ComputeHessian(long natom, long ndim, float d, float* xyz, float* hij) {
-    // compute 3N x 3N real hessian matrix
-    // finite central difference method of second order derivative requires differential distance = 'float d'
-    // xyz positions = 'float* xyz'
-    // 3n x 3n hessian matrix = 'float* hij'
-    long i, j, k;
-    for(i = 0; i < natom; i++) {
-        for(j = 0; j < natom * ndim; j++) {
-            //float dXij   = xyz[3*i + 0] - xyz[3*j + 0];
-            //float dYij   = xyz[3*i + 1] - xyz[3*j + 1];
-            //float dZij   = xyz[3*i + 2] - xyz[3*j + 2];
-            //float dRij   = sqrt(pow(dx, 2) + pow(dy, 2) + pow(dz, 2));
-            //float dRijpd = sqrt(pow(dx+d, 2) + pow(dy+d, 2) + pow(dz+d, 2));
-            //float dRijmd = sqrt(pow(dx-d, 2) + pow(dy-d, 2) + pow(dz-d, 2));
-            for(k = 0; k < 3; k++) {
-                //float Rij = xyz[3*i + k] - xyz[3*j + k];
-                //float Eppd = ComputeAMorsePotential(Rij + d);
-                //float Epmd = ComputeAMorsePotential(Rij - d);
-                //float Ep = ComputeAMorsePotential(Rij);
-                //hij[3*natom*i + 3*j + k] = ( Eppd + Epmd - 2*Ep ) / pow(d, 2);
-            }
-        }
-    }
-    return hij;
-}
-
-// POTENTIAL CALCULATION
+/*
+ * POTENTIAL CALCULATION
+ */
 
 double MorsePotential(double xi, double xj) {
     // separation distance between i'th and j'th particle = 'float rij'
@@ -747,12 +686,22 @@ double ComputeTotalMorsePotential(long natoms, double *xyz) {
     return global_ep_sum;
 }
 
-// FORCE CALCULATIONS
+/*
+ * FORCE CALCULATIONS
+ */
+
+double MorseForce(double xi, double xj, double rij) {
+    //
+    if(DBG) printf("\nMorseForce()\n");
+    double d = 1; double a = 1; double ro = 3.5;
+    double xij = xi - xj;
+    double f = 2*d*a * ( exp(-2*a*(rij-ro)) - exp(-a*(rij-ro)) ) * xij / rij;
+    return f;
+}
 
 double* ComputeMorseForces(long natoms, double *xyz, double *f) {
     if(DBG) printf("\nComputeMorseForces()\n");
     float d = 1; float a = 1; float ro = 3.5;
-    //float d = 2; float a = 1; float ro = 1.2;
     float force; float force_sum;
     float dXij, dYij, dZij, dRij, Rij;
     long i, j, k;
@@ -777,3 +726,45 @@ double* ComputeMorseForces(long natoms, double *xyz, double *f) {
     return f;
 }
 
+
+/*
+ * HESSIAN
+ */
+
+double* ComputeHessian(long n, double* x, double* hij) {
+    // compute 3N x 3N real hessian matrix
+    // finite central difference method of second order derivative requires differential distance = 'float d'
+    // xyz positions = 'float* xyz'
+    // 3n x 3n hessian matrix = 'float* hij'
+    long i, j, k; long count = 0;
+    double xi, xj;
+    double dx = 0.01;
+    double xij, yij, zij;
+    double rij_plus;
+    double rij_minus;
+    double f1, f2;
+    /*
+     * F(x + dx) = f1 (force)
+     * F(x - dx) = f2 (force)
+     */
+    long natom = n / 3;
+    for(i = 0; i < n; i++) {
+        for(j = 0; j < natom; j++) {
+            double xij       = x[3*i + 0] - x[3*j + 0];
+            double yij       = x[3*i + 1] - x[3*j + 1];
+            double zij       = x[3*i + 2] - x[3*j + 2];
+            double rij_plus  = sqrt(pow(xij+dx, 2) + pow(yij+dx, 2) + pow(zij+dx, 2));
+            double rij_minus = sqrt(pow(xij-dx, 2) + pow(yij-dx, 2) + pow(zij-dx, 2));
+            for(k = 0; k < 3; k++) {
+                xi = x[3*i + k];
+                xj = x[3*j + k];
+                f1 = MorseForce(xi+dx, xj, rij_plus);
+                f2 = MorseForce(xi-dx, xj, rij_minus);
+                hij[i*n + j*3 + k] = ( -1*f1 - -1*f2 ) / dx;
+                //printf("i = %ld j = %ld k = %ld xi = %lf xj = %lf f =%lf\n", i, j, k, xi, xj, hij[i*n + j*3 + k]);
+                //count++;
+            }
+        }
+    }
+    return hij;
+}
