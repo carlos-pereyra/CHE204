@@ -1,40 +1,21 @@
-#include <cstdlib>    // c++
-#include <cstdio>     // c++
+#include <cstdlib> 
+#include <cstdio> 
 #include <omp.h>
-#include <vector>     // c++
-#include <algorithm>  // c++
-#include <iostream>   // c++
-#include <iomanip>    // c++
-#include <fstream>    // c++
+#include <vector> 
+#include <algorithm> 
+#include <iostream> 
+#include <iomanip> 
+#include <fstream> 
 #include <math.h>
 #include <mpi.h>
-#include "MersenneTwister.h"
-#include <algorithm>    // std::sort
-#include <vector>       // std::vector
-
-#if defined(__LP64__) /* In LP64 match sizes with the 32 bit ABI */
-typedef int 		__CLPK_integer;
-typedef int 		__CLPK_logical;
-typedef float 		__CLPK_real;
-typedef double 		__CLPK_doublereal;
-typedef __CLPK_logical 	(*__CLPK_L_fp)();
-typedef int 		__CLPK_ftnlen;
-#else
-typedef long int 	__CLPK_integer;
-typedef long int 	__CLPK_logical;
-typedef float 		__CLPK_real;
-typedef double 		__CLPK_doublereal;
-typedef __CLPK_logical 	(*__CLPK_L_fp)();
-typedef long int 	__CLPK_ftnlen;
-#endif
+#include <algorithm> 
+#include <vector> 
 
 #define DBG 0
 #define PNT 0
 
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
-typedef __CLPK_doublereal doublereal;
-typedef __CLPK_integer integer;
 #else
 #include <cblas.h>
 #endif
@@ -73,7 +54,7 @@ float* VectorExtraction(long n, long m, float*, long, float*);
 // IO
 void PrintMatrix(const long n, const long m, double *);
 void PrintMatrixDiag(const long n, const long m, float *);
-void Coords2XYZFile(long n, double* xyz, long index);
+void Coords2XYZFile(string, long n, double* xyz, long index);
 void Results2File(long iter, float e, float maxf);
 
 // PHYSICS
@@ -254,9 +235,14 @@ int main(int argc, char** argv) {
         printf("\n__MAX_F__");
         printf("\n F = %f\n", abs(maxf));
 
-        Coords2XYZFile(natoms, XYZi, iter);
+        /*
+         * print time series positions to .xyz file
+         */
+        Coords2XYZFile("data/output.xyz", natoms, XYZi, iter);
+        
         if( !(n % 2) ) Results2File(iter, ep, abs(maxf));
         if(abs(maxf) < (1e-4) ) {
+            Coords2XYZFile("data/final_coords.xyz", natoms, XYZi, iter); // print final positions to .xyz file
             break;
         }
     }
@@ -603,10 +589,10 @@ void PrintMatrix(const long n, const long m, double *vec) {
     }
 }
 
-void Coords2XYZFile(long n, double *xyz, long index) {
+void Coords2XYZFile(string file, long n, double *xyz, long index) {
     // write coordinates to xyz file
     if(DBG) printf("\nCoords2XYZFile()\n");
-    string filename_xyz = "data/output.xyz";
+    string filename_xyz = string(file); //"data/output.xyz";
     ofstream myfile;
     long i;
     // open new file 
