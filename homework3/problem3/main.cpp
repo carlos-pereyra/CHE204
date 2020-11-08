@@ -86,7 +86,8 @@ int main(int argc, char** argv) {
     dsyev_(&JOBZ, &UPLO, &N_INT, Kij, &LDA_INT, Ei, Vi, &LWORK, &INFO);
 
     /* 1.5 COMPUTE HARMONIC FREQUENCIES OMEGA */
-    for(int i = 0; i < N; i++) { if(Ei[i] < 1e-4) Ei[i] = 0; Ei[i] = sqrt(Ei[i]); }
+    for(int i = 0; i < N; i++) { if(Ei[i] < 1e-4) Ei[i] = 0; Ei[i] = 1e-12 * sqrt(Ei[i]) / (2.41e-17); } // 1e-12 Hz -> to 1 THz
+
 
     /* 2.1 READ COORDINATES (TRUE OPTIMIZED GEOMETRY) */
     ReadInput("coordinates/Optimized_Argon_Cluster_Morse.xyz", NATOMS, Xi_2);
@@ -101,7 +102,7 @@ int main(int argc, char** argv) {
     dsyev_(&JOBZ, &UPLO, &N_INT, Kij_2, &LDA_INT, Ei_2, Vi_2, &LWORK, &INFO);
     
     /* 2.5 COMPUTE HARMONIC FREQUENCIES OMEGA */
-    for(int i = 0; i < N; i++) { if(Ei_2[i] < 1e-4) Ei_2[i] = 0; Ei_2[i] = sqrt(Ei_2[i]); }
+    for(int i = 0; i < N; i++) { if(Ei_2[i] < 1e-4) Ei_2[i] = 0; Ei_2[i] = 1e-12 * sqrt(Ei_2[i]) / (2.41e-17); } // 1e-12 Hz -> to THz
    
 
     /*
@@ -183,6 +184,11 @@ void WriteResults(long n, double* ei, double* vi, double* ei2, double* vi2) {
     file << left << setw(20) << "||eig-vec-1||";
     file << left << setw(20) << "eig-val-2";
     file << "||eig-vec-2||" << "\n";
+    
+    file << left << setw(20) << "# [THz] ";
+    file << left << setw(20) << " ";
+    file << left << setw(20) << "[THz]";
+    file << " " << "\n";
 
     // write results to file
     for(int i = 0; i < n; i++) {
