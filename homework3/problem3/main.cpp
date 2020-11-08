@@ -84,19 +84,24 @@ int main(int argc, char** argv) {
 
     /* 1.4 FIND EIGENVALUES OF Kij */
     dsyev_(&JOBZ, &UPLO, &N_INT, Kij, &LDA_INT, Ei, Vi, &LWORK, &INFO);
-   
+
+    /* 1.5 COMPUTE HARMONIC FREQUENCIES OMEGA */
+    for(int i = 0; i < N; i++) { if(Ei[i] < 1e-4) Ei[i] = 0; Ei[i] = sqrt(Ei[i]); }
 
     /* 2.1 READ COORDINATES (TRUE OPTIMIZED GEOMETRY) */
-    //ReadInput("coordinates/Optimized_Argon_Cluster_Morse.xyz", NATOMS, Xi_2);
+    ReadInput("coordinates/Optimized_Argon_Cluster_Morse.xyz", NATOMS, Xi_2);
     
     /* 2.2 COMPUTE HESSIAN Kij = d''V / dxi dxj */
-    //ComputeHessian(N, Xi_2, Kij_2);
+    ComputeHessian(N, Xi_2, Kij_2);
     
     /* 2.3 SCALE Kij BY MASS */
-    //cblas_dscal(N*N, 1/ (double) MASS, Kij_2, STRIDE); // Kij = Kij / M
+    cblas_dscal(N*N, 1/ (double) MASS, Kij_2, STRIDE); // Kij = Kij / M
     
     /* 2.4 FIND EIGENVALUES OF Kij */
-    //dsyev_(&JOBZ, &UPLO, &N_INT, Kij_2, &LDA_INT, Ei_2, Vi_2, &LWORK, &INFO);
+    dsyev_(&JOBZ, &UPLO, &N_INT, Kij_2, &LDA_INT, Ei_2, Vi_2, &LWORK, &INFO);
+    
+    /* 2.5 COMPUTE HARMONIC FREQUENCIES OMEGA */
+    for(int i = 0; i < N; i++) { if(Ei_2[i] < 1e-4) Ei_2[i] = 0; Ei_2[i] = sqrt(Ei_2[i]); }
    
 
     /*
@@ -202,7 +207,7 @@ double MorseForce(double xij, double rij) {
 }
 
 double* ComputeMorseForcesOnEachParticle(int natom, double *x, double *f) {
-    if(1) printf("\nComputeMorseForcesOnAParticle()\n");
+    if(DBG) printf("\nComputeMorseForcesOnEachParticle()\n");
     double d = 1; double a = 1; double ro = 3.5;
     double force; double force_sum;
     double xij, yij, zij, rij, sep;
@@ -274,18 +279,8 @@ double* ComputeHessian(long n, double* x, double* hij) {
         for(j = i; j < n; j++) {
             hij[i*n + j] = ( -fplus[j] + fminus[j] ) / (2*dx);
             hij[j*n + i] = ( -fplus[j] + fminus[j] ) / (2*dx);
-            printf("\n * A[%ld][%ld]\n", i, j );
-            printf(" * Total count = %ld\n", count);
-            printf(" * fplus = %lf fminus = %lf", fplus[j], fminus[j] );
-            printf(" * -fminus + fplus = %lf\n", -fminus[j] + fplus[j] );
-            printf(" * hij = %f\n", hij[count] );
-            // reset j'th atom wiggle
-            xplus[j] = x[j];
-            xminus[j] = x[j];
             count++;
-            //}
         }
-        //}
         // reset i'th atom
         xplus[i]  = x[i];
         xminus[i] = x[i];
