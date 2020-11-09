@@ -49,7 +49,7 @@ double* ComputeHessian(long n, double* x, double* hij);
 #define NSHOW 5
 
 #define ALPHA 0.0001
-#define MASS 23
+#define MASS 40
 #define STRIDE 1
 
 int main(int argc, char** argv) {
@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
     dsyev_(&JOBZ, &UPLO, &N_INT, Kij, &LDA_INT, Ei, Vi, &LWORK, &INFO);
 
     /* 1.5 COMPUTE HARMONIC FREQUENCIES OMEGA */
-    for(int i = 0; i < N; i++) { if(Ei[i] < 1e-4) Ei[i] = 0; Ei[i] = 1e-12 * sqrt(Ei[i]) / (2.41e-17); } // 1e-12 Hz -> to 1 THz
+    for(int i = 0; i < N; i++) { if(Ei[i] < 1e-4) Ei[i] = 0; Ei[i] = sqrt(Ei[i]) * 100 / (2 * M_PI); } // rad/ps
 
 
     /* 2.1 READ COORDINATES (TRUE OPTIMIZED GEOMETRY) */
@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
     dsyev_(&JOBZ, &UPLO, &N_INT, Kij_2, &LDA_INT, Ei_2, Vi_2, &LWORK, &INFO);
     
     /* 2.5 COMPUTE HARMONIC FREQUENCIES OMEGA */
-    for(int i = 0; i < N; i++) { if(Ei_2[i] < 1e-4) Ei_2[i] = 0; Ei_2[i] = 1e-12 * sqrt(Ei_2[i]) / (2.41e-17); } // 1e-12 Hz -> to THz
+    for(int i = 0; i < N; i++) { if(Ei_2[i] < 1e-4) Ei_2[i] = 0; Ei_2[i] = sqrt(Ei_2[i]) * 100 / (2 * M_PI); } // rad/ps
    
 
     /*
