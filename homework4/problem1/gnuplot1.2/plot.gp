@@ -19,29 +19,33 @@
 set terminal epslatex size 4.5, 3.2 standalone color colortext 10
 set out 'image.tex'
 
-t(x,k) = 4/(pi*(2*k-1))*sin((2*k-1)*x)
+# FOURIER EXPANSION SERIES
 p(x,k) = (2*sin(k*pi*x)*(-1)**(k+1)) / (pi*k)
-
-#series(x,n) = (n>0 ? t(x,n) + series(x,n-1) : 0)
 series(x,n) = (n>0 ? p(x,n) + series(x,n-1) : 0)
 
+# ANALYTICAL FUNCTION
+f(x) = x # conditional function = (x>0 ? 1 : -1)
+
+# LEGEND OPTIONS
 set key right top
+set key spacing 4
+
+# LINE STYLES
 set style line 1 lw 1 ps 2 pt 6 lc 0
-set style line 2 lt 1 pi 5 pt 11 lc 0
+set style line 2 lw 2 lt 1 pi 5 pt 11 lc 1
 set style line 3 lt 1 pi 1 pt 6 ps 1 lc 0
-set style line 4 lw 4 lt 2 lc 0
+set style line 4 lw 4 lt 1 lc 0
 
 set title "1.2 Fourier Expansion" font ", 24"
-set grid
+#set grid
 set xlabel '$x$'
 set ylabel '$f(x)$'
 set mytics 5
 #set xtics 0 0.01
 set mxtics 5
 
-set xrange [-2:2]
-
-plot series(x,5) with line linestyle 1, series(x,100) with line linestyle 4
+set xrange [-1.1:1.1]
+plot series(x,5) with line linestyle 1 title '$\frac{2}{n\pi} \sum_{n=1}^{5} \left(-\cos(n\pi) + \frac{2\sin(n\pi)}{n\pi}\right) \sin(n\pi x)$', series(x,100) with line linestyle 4 title '$\frac{2}{n\pi} \sum_{n=1}^{100} \left(-\cos(n\pi) + \frac{2\sin(n\pi)}{n\pi}\right) \sin(n\pi x)$', f(x) with line linestyle 2
 
 #set yrange [4:5.5]
 #rotate by 90 offset 0, graph -0.2
