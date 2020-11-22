@@ -22,7 +22,7 @@
 using namespace std;
 
 double** inputsignal(string filename, double **addr, double *xj, double *yj, int *n);
-void write2file(int i, int newlineflag, double x, double y, double z);
+void write2file(int i, int newlineflag, double x, double y, double z, double q);
 
 int main(int argc, char** argv) {
     double x, y;
@@ -33,9 +33,7 @@ int main(int argc, char** argv) {
     double rx[2] = {2.4, 1.2};
     double ry[2] = {0, 2.078};
     double theta   = 2*M_PI / N;
-    double freal, fimag;
-    double hreal, himag;
-    double zreal, zimag, zabs;
+    double freal, fimag, fabs;
 
     double **address = (double**) malloc(sizeof(double*)*2);
     double *xj = (double*) malloc(sizeof(double)*1);
@@ -63,13 +61,15 @@ int main(int argc, char** argv) {
         freal = 0;
         fimag = 0;
         for(int j=0; j<n; j++) {
-            freal += yj[j]*cos(k*theta*xj[j]);
+            freal += yj[j]*cos(k*theta*j);
             // + yjimag[j]*sin(k*theta*j);
-            fimag += -yj[j]*sin(k*theta*xj[j]); 
+            fimag += -yj[j]*sin(k*theta*j); 
             // + yjimag[j]*sin(k*theta*xj[j]);
         }
         ck[k] = freal;
-        write2file(k, 0, k, ck[k], 0); // write [k] [0] [x] [y] [z]
+        fabs = sqrt(pow(freal, 2) + pow(fimag, 2));
+        // write [k] [0] [x] [y] [z]
+        write2file(k, 0, k, freal, fimag, fabs);
     }
 
     // free memory
@@ -124,14 +124,15 @@ double** inputsignal(string filename, double **addr, double *xj, double *yj, int
 
 // OUTPUT
 
-void write2file(int i, int newlineflag, double x, double y, double z) {
+void write2file(int i, int newlineflag, double x, double y, double z, double q) {
     string filename = "data/output.dat";
     ofstream outfile;
     if (i==0) {
         outfile.open(filename, std::fstream::out);
         outfile << left << setw(12) << "# x";
         outfile << left << setw(12) << "y";
-        outfile << left << "z\n";
+        outfile << left << setw(12) << "z";
+        outfile << left << "q\n";
     } else if(newlineflag) {
         outfile.open(filename, std::fstream::app);
         outfile << "\n";
@@ -144,7 +145,8 @@ void write2file(int i, int newlineflag, double x, double y, double z) {
     outfile.precision(4);
     outfile << left << setw(12) << x;
     outfile << left << setw(12) << y;
-    outfile << left << z << "\n";
+    outfile << left << setw(12) << z;
+    outfile << left << q << "\n";
 
     outfile.close();
 }
