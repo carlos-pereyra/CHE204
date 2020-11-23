@@ -15,25 +15,19 @@
 //      ./test
 //
 
-#define N 60
-#define NX 60
-#define NY 60
-#define SCALE 10
+//#define N 60
+//#define NX 60
+//#define NY 60
+//#define SCALE 10
+#define DUTY 0.9
 using namespace std;
 
 double** inputsignal(string filename, double **addr, double *xj, double *yj, int *n);
 double w(int j, int n);
+double ww(int j, int n);
 void write2file(string filename, int i, int newlineflag, double x, double y, double z, double q);
 
 int main(int argc, char** argv) {
-    double x, y;
-    double xmin = -SCALE*2.4; double xmax = SCALE*2.4;
-    double ymin = -SCALE*2.4; double ymax = SCALE*2.4;
-    double dx = (xmax - xmin) / NX; 
-    double dy = (ymax - ymin) / NY;
-    double rx[2] = {2.4, 1.2};
-    double ry[2] = {0, 2.078};
-    double theta   = 2*M_PI / N;
     double freal, fimag, fabs;
     double inv_freal, inv_fimag, inv_fabs;
 
@@ -50,8 +44,6 @@ int main(int argc, char** argv) {
     // parameters
     printf("PARAMETERS\n");
     printf("===============\n");
-    printf("dx = %lf\n", dx);
-    printf("dy = %lf\n", dy);
     printf("M_PI = %lf\n", M_PI);
     printf("n = %d\n", n);
     printf("midpoint n/2 = %d\n", n/2);
@@ -59,7 +51,7 @@ int main(int argc, char** argv) {
     // nk = nj = n
     double *ck_real = (double*) malloc(sizeof(double)*n);
     double *ck_imag = (double*) malloc(sizeof(double)*n);
-    double *fk = (double*) malloc(sizeof(double)*n); // back transform
+    double theta   = 2*M_PI / n;
 
     // fourier transform
     for(int k=0; k<n; k++) {
@@ -78,11 +70,10 @@ int main(int argc, char** argv) {
         }
         // FT
         fabs = sqrt(pow(freal, 2) + pow(fimag, 2));
-        ck_real[k] = freal / n; //sqrt(2*M_PI);
-        ck_imag[k] = fimag / n; //sqrt(2*M_PI);
+        ck_real[k] = freal / sqrt(2*M_PI);
+        ck_imag[k] = fimag / sqrt(2*M_PI);
         // inverse FT
         inv_fabs = sqrt(pow(inv_freal, 2) + pow(inv_fimag, 2));
-        fk[k] = inv_freal / (n*0.1);
         // write [filename] [index] [newlineflag] [val1] [val2] [val3] [val4]
         write2file("data/signal.dat", k, 0, xj[k], yj[k], 0, 0);
         write2file("data/ft.dat", k, 0, k, ck_real[k], k, ck_imag[k]);
@@ -95,19 +86,25 @@ int main(int argc, char** argv) {
         inv_fimag = 0;
         //for(int j=(-n/2); j<(n/2); j++) {
         for(int j=0; j<n; j++) {
-            theta   = 2*M_PI / (double) N;
+            //theta   = 2*M_PI / (double) n;
             double phase = k*theta*j;
-            inv_freal += cos(phase)*ck_real[j] - sin(phase)*ck_imag[j]; //w(j,n); // weight function
-            inv_fimag += sin(phase)*ck_real[j] + cos(phase)*ck_imag[j]; //w(j,n); // weight function
+            inv_freal += (cos(phase)*ck_real[j] - sin(phase)*ck_imag[j]) * w(j,n); // weight function
+            inv_fimag += (sin(phase)*ck_real[j] + cos(phase)*ck_imag[j]) * w(j,n); // weight function
         }
-        inv_freal /= n;
-        inv_fimag /= n;
+        inv_freal *= sqrt(2*M_PI) / (DUTY * n);
+        inv_fimag *= sqrt(2*M_PI) / (DUTY * n);
         inv_fabs = sqrt(pow(inv_freal, 2) + pow(inv_fimag, 2));
         // write [filename] [index] [newlineflag] [val1] [val2] [val3] [val4]
         write2file("data/inv_ft.dat", k, 0, xj[k], inv_freal, xj[k], inv_fimag);
         write2file("data/inv_ft_abs.dat", k, 0, xj[k], inv_fabs, 0, 0);
     }
 
+    //double complex pk[n];
+    //int LENSAVE = 2*n + int(log(n)/log(2)) + 4;
+    //double wsave[n];
+    //int LENWORK = 2*n;
+    //double work[n];
+    //_cfft1b(n, 1, &pk, n, &wsave, LENSAVE, &work, );
 
     // free memory
     free(address[0]);
@@ -115,7 +112,6 @@ int main(int argc, char** argv) {
     free(address);
     free(ck_real);
     free(ck_imag);
-    free(fk);
 }
 
 // INPUT
@@ -165,9 +161,13 @@ double** inputsignal(string filename, double **addr, double *xj, double *yj, int
 
 double w(int j, int n) {
     double value;
-    if(j <= int(0.1*(n))) value = 1;
+    if(j <= int(DUTY * n)) value = 1;
     else value = 0;
     return value;
+}
+
+double ww(int j, int n) {
+    return exp(-0.5*pow(2*n / (sigma * (n-1)), 2));
 }
 
 // OUTPUT
