@@ -1,0 +1,162 @@
+\usepackage{tikz}
+\usetikzlibrary{decorations.pathreplacing}
+%transforms all coordinates the same way when used (use it within a scope!)
+%(rotation is not 45 degress to avoid overlapping edges)
+% Input: point of origins x and y coordinate
+\newcommand{\myGlobalTransformation}[2]
+{
+    \pgftransformcm{1}{0}{0.4}{0.5}{\pgfpoint{#1cm}{#2cm}}
+}
+
+
+% draw a 1x5 helper grid in 2D
+% Input: point of origins x and y coordinate and additional drawing-parameters
+\newcommand{\gridManyIons}[3]
+{
+    \begin{scope}
+        %\pgftransformcm{1}{0}{0.4}{0.5}{\pgfpoint{#1cm}{#2cm}}
+        \pgftransformxshift{#1cm}
+        \pgftransformyshift{#2cm}
+        %\myGlobalTransformation{#1}{#2};
+        \draw [#3,step=1cm] grid (5,1);
+        \draw[black,very thick] (0,0) rectangle (5,1);%marking borders
+        %putting arrows and labels:
+        \draw[-latex,thick] (2, 1.9) node[above]{$ion*$}to[out=180,in=90] (0.5, 1.1);
+        \draw[-latex,thick] (2, 1.9) node[left]{$ $}to[out=180,in=90] (1.5, 1.1);
+        \draw[-latex,thick] (2, 1.9) node[left]{$ $}to[out=180,in=90] (2.5, 1.1);
+        \draw[-latex,thick] (2, 1.9) node[left]{$ $}to[out=0,in=90] (3.5, 1.1);
+        \draw[-latex,thick] (2, 1.9) node[left]{$ $}to[out=0,in=90] (4.5, 1.1);
+        \draw [decorate,decoration={brace,amplitude=10pt},xshift=-5pt,yshift=-6pt] (5.4, -0.1) -- (0, -0.1) node [black,midway,xshift=0.0cm, yshift=-18pt] {\footnotesize $ManyIons*$};
+    \end{scope}
+}
+
+
+% draw a 5x5 helper grid in 2D
+% Input: point of origins x and y coordinate and additional drawing-parameters
+\newcommand{\gridGridOfManyIons}[3]
+{
+    \begin{scope}
+        \draw [#3,step=1cm] grid (5,5);
+        \draw[black,very thick] (0,0) rectangle (5,5); %marking borders
+        \draw[-latex,thick] (6, 1.5) node[right]{$ $}to[out=180,in=0] (4.7, 0.5);
+        %\draw[-latex,thick] (6, 1.5) node[right]{\gridManyIons{0}{0}{black!50}}; to[out=180,in=0] (4.7, 0.5);
+        \draw [decorate,decoration={brace,amplitude=10pt},xshift=-5pt,yshift=-6pt] (5.4, -0.1) -- (0, -0.1) node [black,midway,xshift=0.0cm, yshift=-18pt] {\footnotesize $GridOfManyIons*$};
+    \end{scope}
+    \gridManyIons{6}{1}{black!50};
+}
+
+
+% draw a nxn helper grid in 3D
+% Input: point of origins x and y coordinate and additional drawing-parameters
+\newcommand{\gridThreeD}[6]
+{
+    \begin{scope}
+        \myGlobalTransformation{#1}{#2};
+        \def\x{8}
+	\def\y{#4}
+	\newcount\a\a=\number\x
+	\newcount\b\b=\number\y
+	\divide\a by\b 
+        %\draw [#3,step=4 cm] grid (4,4);
+        \draw [#3,step=#6] grid (#4,#5);
+    \end{scope}
+}
+
+\tikzstyle myBG=[line width=3pt,opacity=1.0]
+
+% draws lines with white background to show which lines are closer to the
+% viewer (Hint: draw from bottom up and from back to front)
+%Input: start and end point
+\newcommand{\drawLinewithBG}[2]
+{
+    \draw[white,myBG]  (#1) -- (#2);
+    \draw[black,very thick] (#1) -- (#2);
+}
+
+% draws all horizontal graph lines within grid
+\newcommand{\graphLinesHorizontal}
+{
+    \drawLinewithBG{2,2}{6,2};
+    \drawLinewithBG{2,4}{6,4};
+    \drawLinewithBG{2,6}{6,6};
+    %\drawLinewithBG{2,8}{6,8};
+}
+
+% draws all vertical graph lines within grid
+\newcommand{\graphLinesVertical}
+{
+    %swaps x and y coordinate (hence vertical lines):
+    \pgftransformcm{0}{1}{1}{0}{\pgfpoint{0cm}{0cm}}
+    \graphLinesHorizontal;
+}
+
+%draws nodes of the grid
+%Input: point of origins x and y coordinate
+\newcommand{\graphThreeDnodes}[2]
+{
+    \begin{scope}
+        \myGlobalTransformation{#1}{#2};
+        \foreach \x in {2,4,6} {
+            \foreach \y in {2,4,6} {
+                \node at (\x,\y) [circle,fill=black] {};
+                %this way circle of nodes will not be transformed
+            }
+        }
+    \end{scope}
+}
+
+
+%draws nodes of the 1D manyion grid
+%Input: point of origins x and y coordinate
+\newcommand{\graphManyIonsNodes}[2]
+{
+    \begin{scope}
+        %\myGlobalTransformation{#1}{#2};
+        \node at (0.5,0.5) [circle,fill=black] {};
+        \node at (1.5,0.5) [circle,fill=black] {};
+        \node at (2.5,0.5) [circle,fill=black] {};
+        \node at (3.5,0.5) [circle,fill=black] {};
+        \node at (4.5,0.5) [circle,fill=black] {};
+    \end{scope}
+}
+
+
+%draws nodes of the 2D gridofmanyion grid
+%Input: point of origins x and y coordinate
+\newcommand{\graphGridOfManyIonsNodes}[2]
+{
+    \begin{scope}
+        %\myGlobalTransformation{#1}{#2};
+        \node at (0.5,0.5) [circle,fill=black] {};
+        \node at (1.5,0.5) [circle,fill=black] {};
+        \node at (2.5,0.5) [circle,fill=black] {};
+        \node at (3.5,0.5) [circle,fill=black] {};
+        \node at (4.5,0.5) [circle,fill=black] {};
+        %%
+        \node at (0.5,1.5) [circle,fill=black] {};
+        \node at (1.5,1.5) [circle,fill=black] {};
+        \node at (2.5,1.5) [circle,fill=black] {};
+        \node at (3.5,1.5) [circle,fill=black] {};
+        \node at (4.5,1.5) [circle,fill=black] {};
+        %%
+        \node at (0.5,2.5) [circle,fill=black] {};
+        \node at (1.5,2.5) [circle,fill=black] {};
+        \node at (2.5,2.5) [circle,fill=black] {};
+        \node at (3.5,2.5) [circle,fill=black] {};
+        \node at (4.5,2.5) [circle,fill=black] {};
+        %%
+        \node at (0.5,3.5) [circle,fill=black] {};
+        \node at (1.5,3.5) [circle,fill=black] {};
+        \node at (2.5,3.5) [circle,fill=black] {};
+        \node at (3.5,3.5) [circle,fill=black] {};
+        \node at (4.5,3.5) [circle,fill=black] {};
+        %%
+        \node at (0.5,4.5) [circle,fill=black] {};
+        \node at (1.5,4.5) [circle,fill=black] {};
+        \node at (2.5,4.5) [circle,fill=black] {};
+        \node at (3.5,4.5) [circle,fill=black] {};
+        \node at (4.5,4.5) [circle,fill=black] {};
+    \end{scope}
+}
+
+

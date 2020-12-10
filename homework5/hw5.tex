@@ -1,0 +1,177 @@
+%\documentclass{scrartcl}
+\documentclass{article}
+
+\usepackage{geometry} % document size
+ \geometry{
+ textheight = 700 pt,
+ footskip = 80 pt
+ }
+
+%% strictly for grid/tikz figures
+\usepackage{script1}  %% grid diagrams formatting
+\usepackage{script2}  %% code formatting
+
+%% strictly for fancy headers
+\usepackage{fancyhdr} % fancy headers
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Homework 5}
+\lhead{}
+\rfoot{Page \thepage}
+
+\newcommand{\tmpx}{}
+\newcommand\tmp[1]{\renewcommand{\tmpx}{#1}}
+\fancypagestyle{sec}{\lhead{\tmpx}}
+
+%% strictly for basic math operations
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage{mathtools}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{braket}
+\usepackage{epstopdf}
+\usepackage{float} % hold image in section
+
+%% strictly for tables
+\usepackage{tabularx} % tables
+
+%% strictly for including code snippets
+\usepackage{listings}	% display code
+\usepackage{xcolor}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+%\lstset{style=mystyle}
+
+\usepackage{mathptmx}
+\usepackage[scaled=0.92]{helvet}
+\usepackage{courier}
+
+%% For piecewise defined functions
+\DeclarePairedDelimiter\Floor\lfloor\rfloor
+\DeclarePairedDelimiter\Ceil\lceil\rceil
+
+%% BOXED EQUATIONS FORMAT
+\usepackage{tcolorbox}
+\newtcolorbox{mybox}[1][]{sharp corners, boxsep=3pt, #1}
+
+%% MATRIX NOTATION
+\def\doubleunderline#1{\underline{\underline{#1}}}
+
+\begin{document}
+ 
+ \title{CHE 204: Homework 5}
+ %\subtitle{}
+ \author{Carlos Pereyra}
+ \date{December, 2020}
+ \maketitle
+ 
+ % \begin{lstlisting}[language=R]
+ % \end{lstlisting}
+ \section{System of differential equations}
+\textit{Consider the modified Lotka Volterra system that describes a prey-predator model. The equation for the population of preys has been changed to consider limited growth due to finite resources (the term $u^2$):}\\
+\begin{align}
+\frac{du}{dt} &= (\alpha u - \alpha' u^{2}) - \beta u v \\
+\frac{dv}{dt} &= -\gamma v + \delta u v
+\end{align}
+\\
+\textit{with the parameters $\alpha = 4$, $\alpha' = 2$, $\beta = 1$,$\gamma = 2$, and $\delta = 2$.}
+
+\subsection{Stability}
+\textit{Discuss the stability of the stationary solutions, by linearizing the system of differential equations. (analytical)}
+\\ \\
+So for the sake of easier readability, I have done a change of variables so $u$ and $v$ are not to be confused. Personally I know they can be mixed up, for I might be partially dyslexic. So now let $u=y_1$ and $v=y_2$.
+
+\begin{align}
+\label{eqn:base1} F_1 = \frac{dy_1}{dt} &= (\alpha y_1 - \alpha' y_1^2) - \beta y_1 y_2\\
+ F_2 = \frac{dy_2}{dt} &= -\gamma y_2 + \delta y_1 y_2
+\end{align}
+
+Through a moderate amount of tedious algebra we find the critical points where we let $F_1=0$ and $F_2=0$ and solve for the roots. Finally we conclude with three critical points where the trivial solution (0,0) is of course among them. Here are the following critical points: 
+\\
+\begin{mybox}[standard jigsaw, opacityback=0, title=critical points, colframe=black!30!black]
+\begin{align}
+(\tilde{y}_1^*, \tilde{y}_2^*) \rightarrow &(0,0) \\[6pt]
+(\tilde{y}_1^*, \tilde{y}_2^*) \rightarrow (\frac{\alpha}{\alpha'}, 0) \rightarrow &(2,0) \\[6pt]
+(\tilde{y}_1^*, \tilde{y}_2^*) \rightarrow (\frac{\gamma}{\delta}, \frac{\alpha - \alpha'\left(\frac{\gamma}{\delta}\right)}{\beta}) \rightarrow &(1,2)
+\end{align}
+\end{mybox}
+
+Obviously equations \eqref{eqn:base1} and \eqref{eqn:base1} are non-linear, so the system differential equations here can be represented like so, $\underline{\textbf{Y'}}=\doubleunderline{\textbf{A}}\ \underline{\textbf{Y}}+ \underline{\textbf{h}}(\underline{\textbf{Y}})$. So the determinant of \doubleunderline{\textbf{A}}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\columnwidth}{XX}
+    \centering
+    \resizebox{!}{.15\paperheight}{\input{problem1/criticalpoint1/image.tex}}
+    %\input{problem1/criticalpoint1/fig.ps}
+    \captionof{figure}{$(\tilde{y}_1^*, \tilde{y}_2^*) = (2,0)$}\label{fig:StabilityPlot1}
+    &
+    \centering
+    \resizebox{!}{.15\paperheight}{\input{problem1/criticalpoint2/image.tex}}
+    \captionof{figure}{$(\tilde{y}_1^*, \tilde{y}_2^*) = (1,2)$}\label{fig:StabilityPlot2}
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+
+    \gridThreeD{0}{10}{black!50}{8}{8}{4}
+
+    \gridThreeD{0}{4.25}{black!50}{8}{8}{2}
+
+    \gridThreeD{0}{0}{black!50}{8}{8}{1}
+    
+    %draws lower graph lines and those in z-direction:
+    \begin{scope}
+        \myGlobalTransformation{0}{0};
+        %\graphLinesHorizontal;
+
+        %draws all graph lines in z-direction (reset transformation first!):
+        \foreach \x in {2,4,6} {
+            \foreach \y in {2,4,6} {
+                \node (thisNode) at (\x,\y) {};
+                {
+                    \pgftransformreset
+                    \draw[white,myBG]  (thisNode) -- ++(0,4.25);
+                    \draw[black,very thick] (thisNode) -- ++(0,4.25);
+                }
+            }
+        }
+    \end{scope}
+    
+    % draws all graph nodes:
+    \graphThreeDnodes{0}{0};
+    \graphThreeDnodes{0}{4.25};
+    
+\end{tikzpicture}
+\end{figure}
+
+
+
+
+
+
+\end{document}

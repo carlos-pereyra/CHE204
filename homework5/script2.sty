@@ -1,0 +1,14 @@
+\usepackage{listings}
+
+%
+%% listings configuration
+\lstset{basicstyle=\ttfamily, language=c, numbers=left}
+
+\makeatletter
+\let\orig@lstnumber=\thelstnumber
+
+%
+%% new commands
+\newcommand\lstsetnumber[1]{\gdef\thelstnumber{#1}}
+\newcommand\lstresetnumber{\global\let\thelstnumber=\orig@lstnumber}
+\makeatother
