@@ -104,12 +104,12 @@
 \textit{Discuss the stability of the stationary solutions, by linearizing the system of differential equations. (analytical)}
 \\
 So for the sake of easier readability, I have done a change of variables so $u$ and $v$ are not to be confused. Personally I know they can be mixed up, for I might be partially dyslexic. So now let $u=y_1$ and $v=y_2$.
-%\begin{subequations}
+\begin{subequations}
 \begin{align}
 \label{eqn:base1} F_1 = \frac{dy_1}{dt} &= (\alpha y_1 - \alpha' y_1^2) - \beta y_1 y_2\\
 \label{eqn:base2} F_2 = \frac{dy_2}{dt} &= -\gamma y_2 + \delta y_1 y_2
 \end{align}
-%\end{subequations}
+\end{subequations}
 
 Through a moderate amount of tedious algebra we find the critical points where we let $F_1=0$ and $F_2=0$ and solve for the roots. Finally we conclude with three critical points where the trivial solution (0,0) is of course among them. Here are the following critical points: 
 \\
@@ -125,18 +125,55 @@ Obviously equations \eqref{eqn:base1} and \eqref{eqn:base1} are non-linear, so t
 
 
 \subsection{Eigenvalues}
-\[
+The overall stability of the coupled equations \eqref{eqn:given1} and \eqref{eqn:given2} can be determined from the eigenvalues of the coefficients corresponding to the linear elements. These elements are organized into matrix A which is explicitly shown in equation \eqref{eqn:linearform}
+\begin{equation}
 \underline{\textbf{Y}}' = 
   %\begin{matrix}
   \begin{bmatrix}
-  x & y\\
-  x & y
+  \alpha & 0\\
+  0 & -\gamma
   \end{bmatrix}
+  \underline{\textbf{Y}} + \underline{\textbf{h}}\left(\underline{\textbf{Y}}\right)
+  \label{eqn:linearform}
   %\\\mbox{}
   %\end{matrix}
   %\begin{pmatrix} a & b \\ c & d \end{pmatrix} 
   %\begin{pmatrix} x \\ y \end{pmatrix}
-\]
+\end{equation}
+
+Solving for the eigenvalues of matrix \doubleunderline{\textbf{A}} yields the diagonal elements $\alpha$ and $-\gamma$. Since both $\alpha$ and $\gamma$ are non-negative values, due to the negative sign in front of $-\gamma$ the eigenvalues have opposite signs. We know that "whenever eigenvalues are real and opposite signs we have a Saddle Point at the critical points", thus $\lambda_1\lambda_2<0$ tells us that the stability of the ODE's is a Saddle Point. 
+
+\subsection{Linearizing the Critical Points}
+
+So if we are now to analyze the behavior of the trajectories associated with the two non-trivial critical points we must first linearize our ODE. We do this by shifting the coordinate axis by the nominal value for the critical points. For instance at the critical point $\left(y_1^*, y_2^*\right)=\left(\frac{\alpha}{\alpha'}, 0\right)$ yields the new coordinates $\tilde{y}_1$ and $\tilde{y}_2$.
+
+\subsubsection{Critical Point: $\left(y_1^*, y_2^*\right)=\left(\frac{\alpha}{\alpha'}, 0\right)$ }
+Shift the original coordinates by the critical point to zero the coordinate axis.
+\begin{align}
+y_1 &= \tilde{y}_1 + \frac{\alpha}{\alpha'}\\
+y_2 &= \tilde{y}_2 + 0
+\end{align}
+
+thus when we plug this back into equations \eqref{eqn:base1} and \eqref{eqn:base2}, we yield new functions $\tilde{F}_1$ and $\tilde{F}_2$,
+
+\begin{align}
+\tilde{F}_1 &= -\alpha \tilde{y}_1\\
+\tilde{F}_2 &= \left(\frac{\delta\alpha}{\alpha'}-\gamma \right)\tilde{y}_2
+\end{align}
+
+taking the ratio of $\tilde{F}_1$ and $\tilde{F}_2$ yields differential $\tilde{y}'_1/\tilde{y}'_2$ which by simply integrating, tacking on an integration constant, and inserting values for the variables produces.
+\begin{align}
+\tilde{y}_1 &= \tilde{y}_1 \\
+\tilde{y}_2 &= \frac{C}{6 \tilde{y}_1}
+\end{align}
+The trajectory phase plot can be be seen in Figure \ref{fig:StabilityPlot1}.
+
+\subsubsection{Critical Point: $\left(y_1^*, y_2^*\right)=\left(\frac{\gamma}{\delta}, \frac{\alpha - \alpha'\gamma/\delta}{\beta}\right)$ }
+Perform the same procedures as above to find equation \eqref{eqn:crit2} which can be visualized on the contour plot, Figure \ref{fig:StabilityPlot2}.
+
+\begin{equation}
+4\tilde{y}_1^2 + \tilde{y}_2^2 + \tilde{y}_1^2 \tilde{y}_2^2 = C \label{eqn:crit2}
+\end{equation}
 
 \begin{table}[H]
 \centering
@@ -144,11 +181,11 @@ Obviously equations \eqref{eqn:base1} and \eqref{eqn:base1} are non-linear, so t
     \centering
     \resizebox{!}{.15\paperheight}{\input{problem1/criticalpoint1/image.tex}}
     %\input{problem1/criticalpoint1/fig.ps}
-    \captionof{figure}{$(\tilde{y}_1^*, \tilde{y}_2^*) = (2,0)$}\label{fig:StabilityPlot1}
+    \captionof{figure}{$(\tilde{y}_1^*, \tilde{y}_2^*)=\left(\frac{\alpha}{\alpha'}, 0\right)= (2,0)$}\label{fig:StabilityPlot1}
     &
     \centering
     \resizebox{!}{.15\paperheight}{\input{problem1/criticalpoint2/image.tex}}
-    \captionof{figure}{$(\tilde{y}_1^*, \tilde{y}_2^*) = (1,2)$}\label{fig:StabilityPlot2}
+    \captionof{figure}{$(\tilde{y}_1^*, \tilde{y}_2^*)=\left(\frac{\gamma}{\delta}, \frac{\alpha - \alpha'\gamma/\delta}{\beta}\right) = (1,2)$}\label{fig:StabilityPlot2}
 \end{tabularx}
 \end{table}
 
@@ -172,14 +209,12 @@ Since there are two functions in our system of equations we also need to update 
 
 \begin{subequations}
 \begin{align}
-\label{e11a} 
-u_{k+1} &= u_k + \Delta t \left[F_1\left(t_{k+\frac{1}{2}\Delta t}, u_{k + \frac{1}{2}\Delta t} F_1(u_k, v_k), v_{k + \frac{1}{2}\Delta t} F_1(u_k, v_k)\right)\right]\\
-\label{e11b} 
-v_{k+1} &=  v_k + \Delta t \left[F_2\left(t_{k+\frac{1}{2}\Delta t}, u_{k + \frac{1}{2}\Delta t} F_2(u_k, v_k), v_{k + \frac{1}{2}\Delta t} F_2(u_k, v_k)\right)\right]\
+\label{rk2u} u_{k+1} &= u_k + \Delta t \left[F_1\left(t_{k+\frac{1}{2}\Delta t}, u_{k + \frac{1}{2}\Delta t} F_1(u_k, v_k), v_{k + \frac{1}{2}\Delta t} F_1(u_k, v_k)\right)\right]\\
+\label{rk2v} v_{k+1} &=  v_k + \Delta t \left[F_2\left(t_{k+\frac{1}{2}\Delta t}, u_{k + \frac{1}{2}\Delta t} F_2(u_k, v_k), v_{k + \frac{1}{2}\Delta t} F_2(u_k, v_k)\right)\right]\
 \end{align}
 \end{subequations}
 
-The RK2 operation is updated to reflect the coupled equations, which we present in \eqref{e11a}, \eqref{e11b}. Applying these two equation we are able to integrate \eqref{eqn:given1} and \eqref{eqn:given2}. We test run this equations using $dt=0.01$ and 1000 iterations to extend our plot to 10 units of time as demonstrated in Figure \ref{fig:timeplot}. This Plot demonstrate that the non-linear critical points approach the 1 and 2 as determined in the analytical analysis.
+The RK2 operation is updated to reflect the coupled equations, which we present in \eqref{rk2u}, \eqref{rk2v}. Applying these two equation we are able to integrate \eqref{eqn:given1} and \eqref{eqn:given2}. We test run this equations using $dt=0.01$ and 1000 iterations to extend our plot to 10 units of time as demonstrated in Figure \ref{fig:timeplot}. This plot (Figure \ref{fig:timeplot}) demonstrate stable equilibrium approaches the functional solution 1 and 2. Solving this first order non-linear ODE demonstrates the critical points represent the steady state and approach the 1 and 2 as determined in the analytical stability points.
 \begin{table}[H]
 \centering
 \begin{tabularx}{\columnwidth}{X}
