@@ -91,22 +91,25 @@
  % \end{lstlisting}
  \section{System of differential equations}
 \textit{Consider the modified Lotka Volterra system that describes a prey-predator model. The equation for the population of preys has been changed to consider limited growth due to finite resources (the term $u^2$):}\\
+\begin{subequations}
 \begin{align}
-\frac{du}{dt} &= (\alpha u - \alpha' u^{2}) - \beta u v \\
-\frac{dv}{dt} &= -\gamma v + \delta u v
+\label{eqn:given1} \frac{du}{dt} &= (\alpha u - \alpha' u^{2}) - \beta u v \\
+\label{eqn:given2} \frac{dv}{dt} &= -\gamma v + \delta u v
 \end{align}
+\end{subequations}
 \\
 \textit{with the parameters $\alpha = 4$, $\alpha' = 2$, $\beta = 1$,$\gamma = 2$, and $\delta = 2$.}
 
 \subsection{Stability}
 \textit{Discuss the stability of the stationary solutions, by linearizing the system of differential equations. (analytical)}
-\\ \\
+\\
 So for the sake of easier readability, I have done a change of variables so $u$ and $v$ are not to be confused. Personally I know they can be mixed up, for I might be partially dyslexic. So now let $u=y_1$ and $v=y_2$.
-
+%\begin{subequations}
 \begin{align}
 \label{eqn:base1} F_1 = \frac{dy_1}{dt} &= (\alpha y_1 - \alpha' y_1^2) - \beta y_1 y_2\\
- F_2 = \frac{dy_2}{dt} &= -\gamma y_2 + \delta y_1 y_2
+\label{eqn:base2} F_2 = \frac{dy_2}{dt} &= -\gamma y_2 + \delta y_1 y_2
 \end{align}
+%\end{subequations}
 
 Through a moderate amount of tedious algebra we find the critical points where we let $F_1=0$ and $F_2=0$ and solve for the roots. Finally we conclude with three critical points where the trivial solution (0,0) is of course among them. Here are the following critical points: 
 \\
@@ -118,7 +121,22 @@ Through a moderate amount of tedious algebra we find the critical points where w
 \end{align}
 \end{mybox}
 
-Obviously equations \eqref{eqn:base1} and \eqref{eqn:base1} are non-linear, so the system differential equations here can be represented like so, $\underline{\textbf{Y'}}=\doubleunderline{\textbf{A}}\ \underline{\textbf{Y}}+ \underline{\textbf{h}}(\underline{\textbf{Y}})$. So the determinant of \doubleunderline{\textbf{A}}
+Obviously equations \eqref{eqn:base1} and \eqref{eqn:base1} are non-linear, so the system differential equations here can be represented like so, $\underline{\textbf{Y}}'=\doubleunderline{\textbf{A}}\ \underline{\textbf{Y}}+ \underline{\textbf{h}}(\underline{\textbf{Y}})$. Here $\underline{\textbf{h}}(\underline{\textbf{Y}})$ represents the non-linear components of the system of ordinary differential equations (ODE), and the \doubleunderline{\textbf{A}} matrix represents the linear coefficients. So to determine if the critical points of the nonlinear system are the same as the critical points of the linear system, the determinant of \doubleunderline{\textbf{A}} must be non-zero. It can be easily shown that $\text{det}(\doubleunderline{\textbf{A}}) = -\alpha\gamma\neq 0$ for nonzero constants $\alpha$ and $\gamma$.
+
+
+\subsection{Eigenvalues}
+\[
+\underline{\textbf{Y}}' = 
+  %\begin{matrix}
+  \begin{bmatrix}
+  x & y\\
+  x & y
+  \end{bmatrix}
+  %\\\mbox{}
+  %\end{matrix}
+  %\begin{pmatrix} a & b \\ c & d \end{pmatrix} 
+  %\begin{pmatrix} x \\ y \end{pmatrix}
+\]
 
 \begin{table}[H]
 \centering
@@ -134,44 +152,47 @@ Obviously equations \eqref{eqn:base1} and \eqref{eqn:base1} are non-linear, so t
 \end{tabularx}
 \end{table}
 
-\begin{figure}[H]
+
+\section{Numerical Solution}
+\textit{Solve the system numerically for the initial condition ($u$,$v$) = (1,1) using the midpoint integrator and plot the solutions $u(t)$ and $v(t)$ vs. time, and the trajectory in the $u$, $v$ plane. (numerical)}\\
+\\
+In order to solve for $u(t)$ and $v(t)$ we use the midpoint algorithm (aka. 2nd order Runge-Kutta, RK2). The general formula for the RK2 method looks like below.
+\begin{align}
+\label{eqn:rk2} u_{k+1} &= u_k + \Delta t F\left(t_{k+\frac{1}{2}\Delta t}, u_{k+\frac{1}{2}\Delta t}F(t_k, u_k) \right)
+\end{align}
+
+This problem has two coupled non-linear differential equations so we need to make a couple modifications to account for these two differential equations. Let us define two functions that will be inserted into the $F(t_k,u_k)$ function, these two functions $F_1$ and $F_2$ are defined below (as given in the problem statement).
+
+\begin{align}
+F_1(u,v) &= \frac{du}{dt} = (\alpha u - \alpha' u^2) - \beta u v\\
+F_2(u,v) &= \frac{dv}{dt} = -\gamma v - \delta u v
+\end{align}
+
+Since there are two functions in our system of equations we also need to update the algorithm presented in equation \eqref{eqn:rk2}. We present the updated algorithm, that essentially operates on the first order ODE $F_1$ and $F_2$ to determine  $u(t)$ and $v(t)$. The exact operation the RK2 method performs is an simple midpoint integration of $\int \frac{du}{dt}$ and $\int \frac{dv}{dt}$ ultimately to determine $u(t)$ and $v(t)$.
+
+\begin{subequations}
+\begin{align}
+\label{e11a} 
+u_{k+1} &= u_k + \Delta t \left[F_1\left(t_{k+\frac{1}{2}\Delta t}, u_{k + \frac{1}{2}\Delta t} F_1(u_k, v_k), v_{k + \frac{1}{2}\Delta t} F_1(u_k, v_k)\right)\right]\\
+\label{e11b} 
+v_{k+1} &=  v_k + \Delta t \left[F_2\left(t_{k+\frac{1}{2}\Delta t}, u_{k + \frac{1}{2}\Delta t} F_2(u_k, v_k), v_{k + \frac{1}{2}\Delta t} F_2(u_k, v_k)\right)\right]\
+\end{align}
+\end{subequations}
+
+The RK2 operation is updated to reflect the coupled equations, which we present in \eqref{e11a}, \eqref{e11b}. Applying these two equation we are able to integrate \eqref{eqn:given1} and \eqref{eqn:given2}. We test run this equations using $dt=0.01$ and 1000 iterations to extend our plot to 10 units of time as demonstrated in Figure \ref{fig:timeplot}. This Plot demonstrate that the non-linear critical points approach the 1 and 2 as determined in the analytical analysis.
+\begin{table}[H]
 \centering
-\begin{tikzpicture}
-
-    \gridThreeD{0}{10}{black!50}{8}{8}{4}
-
-    \gridThreeD{0}{4.25}{black!50}{8}{8}{2}
-
-    \gridThreeD{0}{0}{black!50}{8}{8}{1}
-    
-    %draws lower graph lines and those in z-direction:
-    \begin{scope}
-        \myGlobalTransformation{0}{0};
-        %\graphLinesHorizontal;
-
-        %draws all graph lines in z-direction (reset transformation first!):
-        \foreach \x in {2,4,6} {
-            \foreach \y in {2,4,6} {
-                \node (thisNode) at (\x,\y) {};
-                {
-                    \pgftransformreset
-                    \draw[white,myBG]  (thisNode) -- ++(0,4.25);
-                    \draw[black,very thick] (thisNode) -- ++(0,4.25);
-                }
-            }
-        }
-    \end{scope}
-    
-    % draws all graph nodes:
-    \graphThreeDnodes{0}{0};
-    \graphThreeDnodes{0}{4.25};
-    
-\end{tikzpicture}
-\end{figure}
-
-
-
-
+\begin{tabularx}{\columnwidth}{X}
+    \centering
+    \resizebox{!}{.15\paperheight}{\input{problem2/gnuplot/image.tex}}
+    %\input{problem1/criticalpoint1/fig.ps}
+    \captionof{figure}{$dt=0.01, $ $iter=1000$}\label{fig:timeplot}
+    %&
+    %\centering
+    %\resizebox{!}{.15\paperheight}{\input{problem1/criticalpoint2/image.tex}}
+    %\captionof{figure}{$(\tilde{y}_1^*, \tilde{y}_2^*) = (1,2)$}\label{fig:StabilityPlot2}
+\end{tabularx}
+\end{table}
 
 
 \end{document}
