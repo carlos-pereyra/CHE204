@@ -12,14 +12,14 @@ class Poisson2D {
         // computation
         void smooth(double*);
         // 
-        void writematrix2file(int index, double* matrix, string filename);
+        void writematrix2file(std::string filename, std::string mode);
 
     private:
-        double *Uold;
-        double *U;
+        double *uold;
+        double *u;
         double *x;
         double *y;
-        double *f; // charge density rhs
+        double *p; // charge density 
         int mem;
         int nelem, melem;
 };

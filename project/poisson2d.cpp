@@ -1,20 +1,24 @@
 #include <math.h>
 #include <iostream>
+#include <string>
+#include <stdio.h>
+#include <fstream>      // file input, output
+#include <iomanip>      // print setprecision 
 #include "poisson2d.h"
 
 #ifndef DBG
-#define DBG 1
+#define DBG 0
 #endif
 
 using namespace std;
 
 Poisson2D::Poisson2D(int n, int m) {
     if (DBG) printf("Poisson2D::Poisson2D()\n");
-    Uold = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
-    U = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
-    x = (double *) malloc(sizeof(double)*n);    //real(n) vector
-    y = (double *) malloc(sizeof(double)*m);    //real(m) vector
-    f = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
+    uold = (double *) malloc(sizeof(double)*n*m);   //real(nxm) vector
+    u = (double *) malloc(sizeof(double)*n*m);      //real(nxm) vector
+    x = (double *) malloc(sizeof(double)*n);        //real(n) vector
+    y = (double *) malloc(sizeof(double)*m);        //real(m) vector
+    p = (double *) malloc(sizeof(double)*n*m);      //real(nxm) vector
     mem=0;
     mem += sizeof(double)*n*m;
     mem += sizeof(double)*n*m;
@@ -29,35 +33,34 @@ Poisson2D::Poisson2D(int n, int m) {
 
 
 Poisson2D::~Poisson2D() {
-    free(Uold);
-    free(U);
+    free(uold);
+    free(u);
     free(x);
     free(y);
-    free(f);
+    free(p);
 }
 
 void Poisson2D::init() {
-    if (DBG) printf("Poisson2D::init()\n");
-    if (DBG) printf("n = %d\n", nelem);
-    if (DBG) printf("m = %d\n", melem);
-    // fill x with positions, domain omega(0,1)
-
-    // file y with positions, domain omega(0,1)
-
-
-    // fill U with intial guess
+    if (DBG) printf("\nPoisson2D::init()\n");
+    if (DBG) printf(" n = %d\n", nelem);
+    if (DBG) printf(" m = %d\n", melem);
+    
+    // fill u (electrostatic-potential) with intial guess
     for(int j=0; j<nelem; j++) {
         for(int i=0; i<melem; i++) {
-            U[i + j*nelem] = 1;
+            u[i + j*nelem] = 0.5;
         }
     }
-    // fill f with initial boundary conditions
+
+    // fill p (charge density) with initial boundary conditions
     for(int j=0; j<melem; j++) {
         for(int i=0; i<nelem; i++) {
-            if(i==0 || i==(nelem-1)) { f[i + j*nelem] = 1; } 
-            else { f[i + j*nelem] = 0; }
+            //if(i==1 || i==(nelem-2)) { p[i + j*nelem] = 1; } 
+            if(i==ceil((nelem-2)*0.5)) { p[i + j*nelem] = 1; } 
+            else { p[i + j*nelem] = 0; }
         }
     }
+
 }
 
 void Poisson2D::smooth(double *v) {
@@ -79,49 +82,73 @@ void Poisson2D::smooth(double *v) {
     for(int j=1; j<(m-1); j++) {
         for(int i=1; i<(n-1); i++) {
             // save old field
-            Uold[i + j*n] = U[i + j*n]
+            uold[i + j*n] = u[i + j*n];
         }
     }
 
     for(int j=1; j<(m-1); j++) {
         for(int i=1; i<(n-1); i++) {
             // laplacian finite difference
-            up          =U[i + (j+1)*n];
-            down        =U[i + (j-1)*n];
-            right       =U[(i+1) + j*n];
-            left        =U[(i-1) + j*n];
-            v[i + j*n]  =f[i + j*n] - (up + down + right + left) / 4;
-            v[i + j*n]  /= 4;
-            U[i + j*n]  = v[i + j*n];
+            up          =u[i + (j+1)*n];
+            down        =u[i + (j-1)*n];
+            right       =u[(i+1) + j*n];
+            left        =u[(i-1) + j*n];
+            v[i + j*n]  =p[i + j*n] - (up + down + right + left) / 4;
+            // update private potential u
+            u[i + j*n]  = v[i + j*n];
         }
     }
 
 }
 
-void Poisson2D::writematrix2file(int index, double* matrix, string filename) {
+void Poisson2D::writematrix2file(std::string filename, std::string mode) {
     /* 
-    assumes matrix is real(nxm) 
+    *
+    * assumes matrix is real(nxm) 
+    *
     */
+    int newlineflag = 0;
+    int n=nelem;
+    int m=melem;
     ofstream outfile;
-    if (i==0) {
-        outfile.open(filename, std::fstream::out);
-        outfile << left << setw(12) << "# x";
-        outfile << left << setw(12) << "y";
-        outfile << left << setw(12) << "z";
-        outfile << left << "q\n";
-    } else if(newlineflag) {
-        outfile.open(filename, std::fstream::app);
-        outfile << "\n";
-        outfile.close();
-    } else {
-        outfile.open(filename, std::fstream::app);
-    }
+    
+    //if (i==0) {
+    outfile.open(filename, std::fstream::out);
+    outfile << left << setw(12) << "# x";
+    outfile << left << setw(12) << "y";
+    outfile << left << "f(x,y)" << "\n";
+    //else if(newlineflag) {
+    //    outfile.open(filename, std::fstream::app);
+    //    outfile << "\n";
+    //    outfile.close();}
+    //else {
+    //    outfile.open(filename, std::fstream::app);
+    //}
+    
     // print values
-    outfile << std::scientific;
-    outfile.precision(4);
-    outfile << left << setw(12) << x;
-    outfile << left << setw(12) << y;
-    outfile << left << setw(12) << z;
-    outfile << left << q << "\n";
-    outfile.close();
+    if(mode=="potential") {
+        outfile << std::scientific;
+        outfile.precision(4);
+        for(int j=1; j<(m-1); j++) {
+            for(int i=1; i<(n-1); i++) {
+                outfile << left << setw(12) << i;
+                outfile << left << setw(12) << j;
+                outfile << left << u[i + j*n] << "\n";
+            }
+            outfile << "\n";
+        }
+    }
+    else if (mode=="charge") {
+        outfile << std::scientific;
+        outfile.precision(4);
+        for(int j=0; j<m; j++) {
+            for(int i=0; i<n; i++) {
+                outfile << left << setw(12) << i;
+                outfile << left << setw(12) << j;
+                outfile << left << p[i + j*n] << "\n";
+            }
+            outfile << "\n";
+        }
+    }
+
 }

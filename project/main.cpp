@@ -24,9 +24,9 @@
 //      mpirun -n 2 ./test
 //
 
-#define NELEM 21
-#define MELEM 21
-#define ITERATIONS 10
+#define NELEM 51
+#define MELEM 51
+#define ITERATIONS 50
 using namespace std;
 
 int main(int argc, char** argv) {
@@ -34,10 +34,10 @@ int main(int argc, char** argv) {
     int v=ITERATIONS;
     
     // --------- 2D POISSON SOLVER OPERATIONS ---------
-    printf("start program\n");
-    printf("n = %d\n", n);
-    printf("m = %d\n", m);
-    printf("v = %d\n", v);
+    //printf("start program\n");
+    //printf("n = %d\n", n);
+    //printf("m = %d\n", m);
+    //printf("v = %d\n", v);
     Poisson2D* ps2d = new Poisson2D(n,m);
 
     // --------- POTENTIAL VECTOR ---------
@@ -45,9 +45,17 @@ int main(int argc, char** argv) {
     double* p = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
 
     for(int index=0; index<v; index++) {
+        // jacobi method
         ps2d->smooth(u);
-        ps2d->getrhs(p);
-        ps2d->writematrix2file(index, u, "potential");
+
+        // error residual
+
+
+        // output
+        std::string filenameu = "data/potential" + to_string(index) + ".dat";
+        std::string filenamep = "data/charge" + to_string(index) + ".dat";
+        ps2d->writematrix2file(filenameu,"potential");
+        ps2d->writematrix2file(filenamep,"charge");
     }
 
     free(u);
