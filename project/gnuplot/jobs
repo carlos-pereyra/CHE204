@@ -1,0 +1,25 @@
+gnuplot -p plotpotential.gp
+
+for ((j=0; j<20; j++))
+    do
+    latex fig${j}.tex
+    dvips -o potential${j}.ps fig${j}.dvi
+    done
+
+echo All done
+
+#latex fig1.tex
+#dvips -o potential1.ps fig1.dvi
+#open potential1.ps
+
+
+#gnuplot -p plotcharge.gp
+#latex chargeplot.tex
+#dvips -o charge.ps chargeplot.dvi
+#open charge.ps
+
+
+
+#gnuplot -p plotdft.gp
+#latex imagedft.tex
+#dvips -o dft.ps imagedft.dvi
