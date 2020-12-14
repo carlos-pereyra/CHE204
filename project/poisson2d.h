@@ -7,12 +7,13 @@ class Poisson2D {
     public:
         Poisson2D(int n, int m);
         ~Poisson2D();
-        // initialization
-        void init();
-        // computation
-        void smooth(double*);
-        // 
+        void init();            // compose matrices
+        
+        double smooth(double*); // finite difference
+        
         void writematrix2file(std::string filename, std::string mode);
+
+        double error;
 
     private:
         double *uold;
@@ -22,6 +23,7 @@ class Poisson2D {
         double *p; // charge density 
         int mem;
         int nelem, melem;
+        double dx, dy, dx2, dy2;
 };
 
 //}

@@ -10,6 +10,9 @@
 #define DBG 0
 #endif
 
+#define SCALEX 1
+#define SCALEY 1
+
 using namespace std;
 
 Poisson2D::Poisson2D(int n, int m) {
@@ -48,7 +51,7 @@ void Poisson2D::init() {
     // fill u (electrostatic-potential) with intial guess
     for(int j=0; j<nelem; j++) {
         for(int i=0; i<melem; i++) {
-            u[i + j*nelem] = 0.5;
+            u[i + j*nelem] = 0;
         }
     }
 
@@ -61,9 +64,15 @@ void Poisson2D::init() {
         }
     }
 
+    // finite difference variables
+    dx   = SCALEX * 1 / (double) nelem;
+    dy   = SCALEY * 1 / (double) melem;
+    dx2  = pow(dx, 2);
+    dy2  = pow(dy, 2);
+
 }
 
-void Poisson2D::smooth(double *v) {
+double Poisson2D::smooth(double *v) {
     /* jacobi relaxation smoothy algorithm.
     *
     *                up
@@ -74,18 +83,15 @@ void Poisson2D::smooth(double *v) {
     *                |
     *                down
     *
+    *
+    *   return percent difference betwee k'th and k+1'th iteration
+    *
     */
     double up, down, right, left;
     int n=nelem;
     int m=melem;
 
-    for(int j=1; j<(m-1); j++) {
-        for(int i=1; i<(n-1); i++) {
-            // save old field
-            uold[i + j*n] = u[i + j*n];
-        }
-    }
-
+    double trace = 0; double traceold = 0;
     for(int j=1; j<(m-1); j++) {
         for(int i=1; i<(n-1); i++) {
             // laplacian finite difference
@@ -93,12 +99,20 @@ void Poisson2D::smooth(double *v) {
             down        =u[i + (j-1)*n];
             right       =u[(i+1) + j*n];
             left        =u[(i-1) + j*n];
-            v[i + j*n]  =p[i + j*n] - (up + down + right + left) / 4;
+            v[i + j*n]  =0.5 * ( dx2*(up + down)/(dx2 + dy2) + dy2*(right + left)/(dx2 + dy2) + (dx2*dy2)*p[i + j*n]/(dx2 + dy2) );
+            // error sum
+            if(i==j) {
+                trace    +=v[i + j*n];
+                traceold +=u[i + j*n];
+            }
             // update private potential u
             u[i + j*n]  = v[i + j*n];
+
         }
     }
 
+    error = abs(pow(trace,2) - pow(traceold,2)) / pow(traceold,2);
+    return error;
 }
 
 void Poisson2D::writematrix2file(std::string filename, std::string mode) {

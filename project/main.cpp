@@ -22,11 +22,15 @@
 //      mpicxx main.cpp -o test
 //
 //      mpirun -n 2 ./test
+//  
+//      usage:
+//          make
+//          ./poisson
 //
 
 #define NELEM 51
 #define MELEM 51
-#define ITERATIONS 50
+#define ITERATIONS 2000
 using namespace std;
 
 int main(int argc, char** argv) {
@@ -48,8 +52,14 @@ int main(int argc, char** argv) {
         // jacobi method
         ps2d->smooth(u);
 
-        // error residual
+        // multigrids
+        //ps2d->residual();
 
+        // error residual
+        printf("iteration= %d error= %lf\n", index, ps2d->error);
+        if(ps2d->error<1e-4) {
+            break;
+        }
 
         // output
         std::string filenameu = "data/potential" + to_string(index) + ".dat";
