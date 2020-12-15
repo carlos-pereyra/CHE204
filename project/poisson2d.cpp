@@ -10,14 +10,14 @@
 #define DBG 0
 #endif
 
-#define SCALEX 1
-#define SCALEY 1
+#define LENGTHB 1       // BAR LENGTH
+#define LENGTHX 3       // X DIRECTION LENGTH
+#define LENGTHY 3       // Y DIRECTION LENGTH
 
 using namespace std;
 
-Poisson2D::Poisson2D(int n, int m) {
+Poisson2D::Poisson2D(int n, int m, double* phi, double* rho) {
     if (DBG) printf("Poisson2D::Poisson2D()\n");
-    uold = (double *) malloc(sizeof(double)*n*m);   //real(nxm) vector
     u = (double *) malloc(sizeof(double)*n*m);      //real(nxm) vector
     x = (double *) malloc(sizeof(double)*n);        //real(n) vector
     y = (double *) malloc(sizeof(double)*m);        //real(m) vector
@@ -31,89 +31,158 @@ Poisson2D::Poisson2D(int n, int m) {
 
     nelem=n;
     melem=m;
-    init();
+    init(phi, rho);
+
+    // update all phi and rho elements
+    //phi = u;
+    //rho = p;
 }
 
 
 Poisson2D::~Poisson2D() {
-    free(uold);
     free(u);
     free(x);
     free(y);
     free(p);
 }
 
-void Poisson2D::init() {
+void Poisson2D::init(double* phi, double* rho) {
     if (DBG) printf("\nPoisson2D::init()\n");
     if (DBG) printf(" n = %d\n", nelem);
     if (DBG) printf(" m = %d\n", melem);
     
-    // fill u (electrostatic-potential) with intial guess
-    for(int j=0; j<nelem; j++) {
-        for(int i=0; i<melem; i++) {
-            u[i + j*nelem] = 0;
+    // fill u (electrostatic-potential) with intial guess and 
+    // dirichlet boundary conditions
+    for(int j=0; j<melem; j++) {
+        for(int i=0; i<nelem; i++) {
+            if(DBG) printf("filling u[%d][%d]\n", i, j);
+            if( (i==0) && (i==(nelem-1)) && (j==0) && (j==(nelem-1)) ) { 
+                // boundary conditions
+                phi[i + j*nelem] = u[i + j*nelem] = 0;
+            } else {
+                // internal guess
+                phi[i + j*nelem] = u[i + j*nelem] = 0;
+            }
         }
     }
 
     // fill p (charge density) with initial boundary conditions
+    int N1 = ceil(0.5*melem*(1 - LENGTHB / (double) LENGTHY));
+    int N2 = ceil(1.0*melem*(LENGTHB / (double) LENGTHY));
     for(int j=0; j<melem; j++) {
         for(int i=0; i<nelem; i++) {
-            //if(i==1 || i==(nelem-2)) { p[i + j*nelem] = 1; } 
-            if(i==ceil((nelem-2)*0.5)) { p[i + j*nelem] = 1; } 
-            else { p[i + j*nelem] = 0; }
+            if(DBG) printf("filling rho[%d][%d]\n", i, j);
+
+            // charged bar conditions
+            if(i==ceil((nelem-2)*0.5) && j>=N1 && j<=(N1+N2)) { 
+                rho[i + j*nelem] = p[i + j*nelem] = 1;
+                //phi[i + j*nelem] = u[i + j*nelem] = 1;
+            } 
+            else { 
+                rho[i + j*nelem] = p[i + j*nelem] = 0;
+            }
+
         }
     }
 
-    // finite difference variables
-    dx   = SCALEX * 1 / (double) nelem;
-    dy   = SCALEY * 1 / (double) melem;
+    // finite difference
+    dx   = LENGTHX * 1 / (double) nelem;
+    dy   = LENGTHY * 1 / (double) melem;
     dx2  = pow(dx, 2);
     dy2  = pow(dy, 2);
 
 }
 
-double Poisson2D::smooth(double *v) {
-    /* jacobi relaxation smoothy algorithm.
-    *
-    *                up
-    *                |
-    *                |
-    *   left ----- center ----- right
-    *                |
-    *                |
-    *                down
-    *
-    *
-    *   return percent difference betwee k'th and k+1'th iteration
-    *
-    */
+void Poisson2D::smooth(double *v, double *f) {
+    /* 
+     * jacobi relaxation smoothy algorithm.
+     *
+     *                up
+     *                |
+     *                |
+     *   left ----- center ----- right
+     *                |
+     *                |
+     *                down
+     *
+     *
+     * return percent difference.
+     *
+     */
+    if (DBG) printf("\nPoisson2D::smooth()\n");
+    
     double up, down, right, left;
     int n=nelem;
     int m=melem;
 
-    double trace = 0; double traceold = 0;
+    double trace = 0;
+    double traceold = 0;
+    
     for(int j=1; j<(m-1); j++) {
         for(int i=1; i<(n-1); i++) {
             // laplacian finite difference
-            up          =u[i + (j+1)*n];
-            down        =u[i + (j-1)*n];
-            right       =u[(i+1) + j*n];
-            left        =u[(i-1) + j*n];
-            v[i + j*n]  =0.5 * ( dx2*(up + down)/(dx2 + dy2) + dy2*(right + left)/(dx2 + dy2) + (dx2*dy2)*p[i + j*n]/(dx2 + dy2) );
-            // error sum
+            up          =v[i + (j+1)*n];
+            down        =v[i + (j-1)*n];
+            right       =v[(i+1) + j*n];
+            left        =v[(i-1) + j*n];
+            u[i + j*n]  =v[i + j*n]; // u^n
+            v[i + j*n]  =0.5 * ( dx2*(up + down)/(dx2 + dy2) +
+                                 dy2*(right + left)/(dx2 + dy2) + 
+                                 (dx2*dy2)*f[i + j*n]/(dx2 + dy2) ); // u^n+1
+            // error
             if(i==j) {
                 trace    +=v[i + j*n];
                 traceold +=u[i + j*n];
             }
-            // update private potential u
-            u[i + j*n]  = v[i + j*n];
 
         }
     }
 
-    error = abs(pow(trace,2) - pow(traceold,2)) / pow(traceold,2);
-    return error;
+    error = (pow(trace,2) - pow(traceold,2)) / pow(traceold,2);
+    if(DBG) printf("error = %lf\n", error);
 }
+
+void Poisson2D::defect(double *v, double *f, double* dl) {
+    /*
+     * defect calculation.
+     *
+     *      dl = Ll ul - fl
+     *
+     * determines +residual error, dl.
+     */
+    if (DBG) printf("\nPoisson2D::defect()\n");
+    
+    double up, down, right, left;
+    int n=nelem;
+    int m=melem;
+
+    // interior defect points
+    for(int j=1; j<(m-1); j++) {
+        for(int i=1; i<(n-1); i++) {
+            // Ll ul - fl operation
+            up          =v[i + (j+1)*n];
+            down        =v[i + (j-1)*n];
+            right       =v[(i+1) + j*n];
+            left        =v[(i-1) + j*n];
+            dl[i + j*n] =0.5 * ( dx2*(up + down)/(dx2 + dy2) +
+                                 dy2*(right + left)/(dx2 + dy2) +
+                                 (dx2*dy2)*f[i + j*n]/(dx2 + dy2) ) - f[i + j*n];
+
+        }
+    }
+
+    // boundary defect points
+    for(int i=0; i<n; i++) dl[i + 0]   = dl[i + (m-1)*n] = 0;
+    for(int j=0; j<m; j++) dl[0 + j*n] = dl[(n-1) + j*n] = 0;
+
+}
+
+void Poisson2D::restriction(double *v, double *f) {
+}
+
+void Poisson2D::prolongation(double *v, double *f) {
+}
+
 
 void Poisson2D::writematrix2file(std::string filename, std::string mode) {
     /* 

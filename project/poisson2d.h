@@ -5,18 +5,20 @@
 
 class Poisson2D {
     public:
-        Poisson2D(int n, int m);
+        Poisson2D(int n, int m, double*, double*);
         ~Poisson2D();
-        void init();            // compose matrices
+        void init(double*, double*);            // compose matrices
         
-        double smooth(double*); // finite difference
-        
+        void smooth(double*, double*);          // finite difference operator
+        void defect(double*, double*, double*); // defect operator
+        void restriction(double*, double*);     // restriction operator
+        void prolongation(double*, double*);    // prolongation operator
+
         void writematrix2file(std::string filename, std::string mode);
 
         double error;
 
     private:
-        double *uold;
         double *u;
         double *x;
         double *y;

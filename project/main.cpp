@@ -28,8 +28,8 @@
 //          ./poisson
 //
 
-#define NELEM 51
-#define MELEM 51
+#define NELEM 71
+#define MELEM 71
 #define ITERATIONS 2000
 using namespace std;
 
@@ -37,38 +37,41 @@ int main(int argc, char** argv) {
     int n=NELEM, m=MELEM;
     int v=ITERATIONS;
     
-    // --------- 2D POISSON SOLVER OPERATIONS ---------
-    //printf("start program\n");
-    //printf("n = %d\n", n);
-    //printf("m = %d\n", m);
-    //printf("v = %d\n", v);
-    Poisson2D* ps2d = new Poisson2D(n,m);
-
-    // --------- POTENTIAL VECTOR ---------
+    /* --------- VECTOR INITIALIZATION ---------
+     *
+     * poisson:
+     *   \nabla^2 u = p
+     *
+     */
     double* u = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
     double* p = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
+    double* dl= (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
+
+    // --------- 2D POISSON SOLVER OPERATIONS ---------
+    Poisson2D* ps2d = new Poisson2D(n,m, u,p);
 
     for(int index=0; index<v; index++) {
         // jacobi method
-        ps2d->smooth(u);
+        ps2d->smooth(u,p);
 
         // multigrids
-        //ps2d->residual();
-
-        // error residual
-        printf("iteration= %d error= %lf\n", index, ps2d->error);
-        if(ps2d->error<1e-4) {
-            break;
-        }
+        ps2d->defect(u,p,dl);
 
         // output
         std::string filenameu = "data/potential" + to_string(index) + ".dat";
         std::string filenamep = "data/charge" + to_string(index) + ".dat";
         ps2d->writematrix2file(filenameu,"potential");
         ps2d->writematrix2file(filenamep,"charge");
+
+        // error residual
+        printf("iteration= %d error= %lf\n", index, ps2d->error);
+        if(ps2d->error<1e-3) {
+            break;
+        }
     }
 
     free(u);
     free(p);
+    free(dl);
     delete ps2d;
 }
