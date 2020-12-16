@@ -1,25 +1,21 @@
-gnuplot -p plotpotential.gp
+#### POTENTIAL FIELD PLOT
+#gnuplot -p plotpotential.gp
+#for ((j=0; j<90; j++))
+#    do
+#    latex fig${j}.tex
+#    dvips -o potential${j}.ps fig${j}.dvi
+#    done
 
-for ((j=0; j<20; j++))
-    do
-    latex fig${j}.tex
-    dvips -o potential${j}.ps fig${j}.dvi
-    done
+## ANIMATION
+gnuplot -p plotanimation.gp
 
-echo All done
+#echo All done
+#convert -density 400 -loop 0 potential*.ps output.gif
 
-#latex fig1.tex
-#dvips -o potential1.ps fig1.dvi
-#open potential1.ps
-
-
+#### CHARGE DENSITY PLOT
 #gnuplot -p plotcharge.gp
 #latex chargeplot.tex
 #dvips -o charge.ps chargeplot.dvi
 #open charge.ps
 
 
-
-#gnuplot -p plotdft.gp
-#latex imagedft.tex
-#dvips -o dft.ps imagedft.dvi
