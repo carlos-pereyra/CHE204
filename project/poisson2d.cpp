@@ -156,11 +156,9 @@ void Poisson2D::defect(double *v, double *f, double* dl) {
     int n=nelem;
     int m=melem;
 
-    // interior defect points
-    for(int j=1; j<(m-1); j++) {
+    for(int j=1; j<(m-1); j++) { // interior defect points
         for(int i=1; i<(n-1); i++) {
-            // Ll ul - fl operation
-            up          =v[i + (j+1)*n];
+            up          =v[i + (j+1)*n]; // Ll ul - fl operation
             down        =v[i + (j-1)*n];
             right       =v[(i+1) + j*n];
             left        =v[(i-1) + j*n];
@@ -171,8 +169,7 @@ void Poisson2D::defect(double *v, double *f, double* dl) {
         }
     }
 
-    // boundary defect points
-    for(int i=0; i<n; i++) dl[i + 0]   = dl[i + (m-1)*n] = 0;
+    for(int i=0; i<n; i++) dl[i + 0]   = dl[i + (m-1)*n] = 0; // boundary defect points
     for(int j=0; j<m; j++) dl[0 + j*n] = dl[(n-1) + j*n] = 0;
 
 }
@@ -195,33 +192,29 @@ void Poisson2D::writematrix2file(std::string filename, std::string mode) {
     int m=melem;
     ofstream outfile;
     
-    //if (i==0) {
-    outfile.open(filename, std::fstream::out);
-    outfile << left << setw(12) << "# x";
-    outfile << left << setw(12) << "y";
-    outfile << left << "f(x,y)" << "\n";
-    //else if(newlineflag) {
-    //    outfile.open(filename, std::fstream::app);
-    //    outfile << "\n";
-    //    outfile.close();}
-    //else {
-    //    outfile.open(filename, std::fstream::app);
-    //}
-    
-    // print values
     if(mode=="potential") {
+        outfile.open(filename, std::fstream::out);
+        outfile << left << setw(12) << "# x";
+        outfile << left << setw(12) << "y";
+        outfile << left << setw(12) << "f(x,y)";
+        outfile << left << "error" << "\n";
         outfile << std::scientific;
         outfile.precision(4);
         for(int j=1; j<(m-1); j++) {
             for(int i=1; i<(n-1); i++) {
                 outfile << left << setw(12) << i;
                 outfile << left << setw(12) << j;
-                outfile << left << u[i + j*n] << "\n";
+                outfile << left << setw(12) << u[i + j*n];
+                outfile << left << error << "\n";
             }
             outfile << "\n";
         }
     }
     else if (mode=="charge") {
+        outfile.open(filename, std::fstream::out);
+        outfile << left << setw(12) << "# x";
+        outfile << left << setw(12) << "y";
+        outfile << left << "f(x,y)" << "\n";
         outfile << std::scientific;
         outfile.precision(4);
         for(int j=0; j<m; j++) {
