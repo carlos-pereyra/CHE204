@@ -307,16 +307,16 @@ void Poisson2D::writematrix2file(std::string filename, std::string mode) {
         outfile.open(filename, std::fstream::out);
         outfile << left << setw(12) << "# x";
         outfile << left << setw(12) << "y";
-        outfile << left << setw(12) << "f(x,y)";
-        outfile << left << "error" << "\n";
+        outfile << left << "u(x,y)\n";
+        //outfile << left << "error" << "\n";
         outfile << std::scientific;
         outfile.precision(4);
         for(int j=1; j<(m-1); j++) {
             for(int i=1; i<(n-1); i++) {
                 outfile << left << setw(12) << i;
                 outfile << left << setw(12) << j;
-                outfile << left << setw(12) << u[i + j*n];
-                outfile << left << error << "\n";
+                outfile << left << u[i + j*n] << "\n";
+                //outfile << left << error << "\n";
             }
             outfile << "\n";
         }
@@ -325,19 +325,37 @@ void Poisson2D::writematrix2file(std::string filename, std::string mode) {
         outfile.open(filename, std::fstream::out);
         outfile << left << setw(12) << "# x";
         outfile << left << setw(12) << "y";
-        outfile << left << setw(12) << "f(x,y)";
-        outfile << left << "error" << "\n";
+        outfile << left << "u(x,y)\n";
+        //outfile << left << "error" << "\n";
         outfile << std::scientific;
         outfile.precision(4);
         for(int j=0; j<m; j++) {
             for(int i=0; i<n; i++) {
                 outfile << left << setw(12) << i;
                 outfile << left << setw(12) << j;
-                outfile << left << setw(12) << utmp[i + j*n] << "\n";
-                outfile << left << errortmp << "\n";
+                outfile << left << utmp[i + j*n] << "\n";
+                //outfile << left << errortmp << "\n";
             }
             outfile << "\n";
         }
+    }
+    else if (mode=="error") {
+        outfile.open(filename, std::fstream::out);
+        outfile << left << setw(12) << "# index";
+        outfile << left << "error\n";
+        outfile << std::scientific;
+        outfile.precision(4);
+        outfile << left << setw(12) << index;
+        outfile << left << error << "\n";
+    }
+    else if (mode=="errortmp") {
+        outfile.open(filename, std::fstream::out);
+        outfile << left << setw(12) << "# index";
+        outfile << left << "error_tmp\n";
+        outfile << std::scientific;
+        outfile.precision(4);
+        outfile << left << setw(12) << index;
+        outfile << left << errortmp << "\n";
     }
     else if (mode=="charge") {
         outfile.open(filename, std::fstream::out);

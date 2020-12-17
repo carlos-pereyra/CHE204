@@ -17,6 +17,7 @@ class Poisson2D {
         void writematrix2file(std::string filename, std::string mode);
         void copy(int, double*, double*);
 
+        int index;
         double error;
         double errortmp;
 

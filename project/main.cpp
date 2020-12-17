@@ -68,12 +68,17 @@ int main(int argc, char** argv) {
             ps2d->prolongation(l-s,nu+s, rdl,dl,utmp);  // l'th-1 level -> l'th level
         }
         // output
-        std::string filenameutmp = "data/tmp" + to_string(index) + ".dat";
-        std::string filenameu = "data/potential" + to_string(index) + ".dat";
-        std::string filenamep = "data/charge" + to_string(index) + ".dat";
-        ps2d->writematrix2file(filenameutmp,"potentialtmp");
-        ps2d->writematrix2file(filenameu,"potential");
-        ps2d->writematrix2file(filenamep,"charge");
+        std::string filename_utmp   = "data/pottmp" + to_string(index) + ".dat";
+        std::string filename_u      = "data/pot" + to_string(index) + ".dat";
+        std::string filename_errtmp = "data/errtmp" + to_string(index) + ".dat";
+        std::string filename_err    = "data/err" + to_string(index) + ".dat";
+        std::string filename_p      = "data/charge" + to_string(index) + ".dat";
+        ps2d->index = index;
+        ps2d->writematrix2file(filename_utmp,  "potentialtmp");
+        ps2d->writematrix2file(filename_u,     "potential");
+        ps2d->writematrix2file(filename_errtmp,"errortmp");
+        ps2d->writematrix2file(filename_err,   "error");
+        ps2d->writematrix2file(filename_p,     "charge");
 
         // error residual
         printf("l=%d nu=%d iteration=%d error= %lf errortmp=%lf\n",l, nu, index, ps2d->error, ps2d->errortmp);
