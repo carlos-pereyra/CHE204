@@ -18,6 +18,7 @@ using namespace std;
 
 Poisson2D::Poisson2D(int n, int m, double* phi, double* rho) {
     if (DBG) printf("Poisson2D::Poisson2D()\n");
+    utmp = (double *) malloc(sizeof(double)*n*m);   //real(nxm) vector
     u = (double *) malloc(sizeof(double)*n*m);      //real(nxm) vector
     x = (double *) malloc(sizeof(double)*n);        //real(n) vector
     y = (double *) malloc(sizeof(double)*m);        //real(m) vector
@@ -33,13 +34,11 @@ Poisson2D::Poisson2D(int n, int m, double* phi, double* rho) {
     melem=m;
     init(phi, rho);
 
-    // update all phi and rho elements
-    //phi = u;
-    //rho = p;
 }
 
 
 Poisson2D::~Poisson2D() {
+    free(utmp);
     free(u);
     free(x);
     free(y);
@@ -93,9 +92,12 @@ void Poisson2D::init(double* phi, double* rho) {
 
 }
 
-void Poisson2D::smooth(double *v, double *f) {
+void Poisson2D::smooth(int l, int nu, double *v, double *f) {
     /* 
-     * jacobi relaxation smoothy algorithm.
+     * jacobi relaxation smoothy algorithm. iteratively solve \nabla^2 u = f
+     * assumptions: (1) v, f are square lattices with 2^l+1 elements on each dimension
+     *              (2) l is level number (index starts at +1)
+     *              (3) nu is level depth number
      *
      *                up
      *                |
@@ -112,60 +114,98 @@ void Poisson2D::smooth(double *v, double *f) {
     if (DBG) printf("\nPoisson2D::smooth()\n");
     
     double up, down, right, left;
-    int n=nelem;
-    int m=melem;
+    int n=pow(2,l); //nelem;
+    int m=pow(2,l); //melem;
+    int step=pow(2,nu);
 
     double trace = 0;
     double traceold = 0;
     
-    for(int j=1; j<(m-1); j++) {
-        for(int i=1; i<(n-1); i++) {
+    for(int j=step; j<(m-1); j+=step) {
+        for(int i=step; i<(n-1); i+=step) {
             // laplacian finite difference
             up          =v[i + (j+1)*n];
             down        =v[i + (j-1)*n];
             right       =v[(i+1) + j*n];
             left        =v[(i-1) + j*n];
-            u[i + j*n]  =v[i + j*n]; // u^n
-            v[i + j*n]  =0.5 * ( dx2*(up + down)/(dx2 + dy2) +
-                                 dy2*(right + left)/(dx2 + dy2) + 
-                                 (dx2*dy2)*f[i + j*n]/(dx2 + dy2) ); // u^n+1
+            // u^n
+            u[i + j*n]  =v[i + j*n];
+            // u^n+1
+            v[i + j*n]  =0.5*( dx2*(up + down)/(dx2 + dy2) + 
+                                 dy2*(right + left)/(dx2 + dy2) +
+                                 dx2*dy2*f[i + j*n]/(dx2 + dy2) );
             // error
             if(i==j) {
-                trace    +=v[i + j*n];
-                traceold +=u[i + j*n];
+                trace    +=v[i + j*n];      // new trace
+                traceold +=u[i + j*n];      // old trace
             }
 
         }
     }
-
     error = (pow(trace,2) - pow(traceold,2)) / pow(traceold,2);
+   
+    double val; 
+    trace = 0;
+    traceold = 0;
+    for(int j=step; j<(m-1); j+=step) {
+        for(int i=step; i<(n-1); i+=step) {
+            // laplacian finite difference
+            up          =utmp[i + (j+1)*n];
+            down        =utmp[i + (j-1)*n];
+            right       =utmp[(i+1) + j*n];
+            left        =utmp[(i-1) + j*n];
+            // u^n
+            val         =utmp[i + j*n];
+            // u^n+1
+            utmp[i + j*n]=0.5*( dx2*(up + down)/(dx2 + dy2) + 
+                                dy2*(right + left)/(dx2 + dy2) +
+                                dx2*dy2*f[i + j*n]/(dx2 + dy2) );
+            // error
+            if(i==j) {
+                trace    +=utmp[i + j*n];   // new trace
+                traceold +=val;             // old trace
+            }
+
+        }
+    }
+    errortmp = (pow(trace,2) - pow(traceold,2)) / pow(traceold,2);
+    
     if(DBG) printf("error = %lf\n", error);
 }
 
-void Poisson2D::defect(double *v, double *f, double* dl) {
+void Poisson2D::defect(int l, int nu, double *v, double *f, double* dl) {
     /*
      * defect calculation.
      *
      *      dl = Ll ul - fl
      *
-     * determines +residual error, dl.
+     * determines minus defect
      */
     if (DBG) printf("\nPoisson2D::defect()\n");
     
-    double up, down, right, left;
-    int n=nelem;
-    int m=melem;
+    double up, down, right, left, onsite;
+    int n=pow(2,l); //n-elements;
+    int m=pow(2,l); //m-elements;
+    int step=pow(2,nu);
 
-    for(int j=1; j<(m-1); j++) { // interior defect points
-        for(int i=1; i<(n-1); i++) {
+    double d2i=step * LENGTHX * 1 / (double) n;
+    
+    for(int j=step; j<(m-1); j+=step) { // interior defect points
+        for(int i=step; i<(n-1); i+=step) {
             up          =v[i + (j+1)*n]; // Ll ul - fl operation
             down        =v[i + (j-1)*n];
             right       =v[(i+1) + j*n];
             left        =v[(i-1) + j*n];
-            dl[i + j*n] =0.5 * ( dx2*(up + down)/(dx2 + dy2) +
+            onsite      =v[i + j*n];
+            /*dl[i + j*n] =0.5 * ( dx2*(up + down)/(dx2 + dy2) +
                                  dy2*(right + left)/(dx2 + dy2) +
-                                 (dx2*dy2)*f[i + j*n]/(dx2 + dy2) ) - f[i + j*n];
-
+                                 (dx2*dy2)*f[i + j*n]/(dx2 + dy2) ) - f[i + j*n];*/
+            
+            // minus defect (since \nabla^2 u = -p)
+            // this is actually the pos defect
+            dl[i+j*n]   =-d2i*(right + left + up + down - 4*onsite) + f[i+j*n];
+            // now its neg defect
+            dl[i+j*n]   =-dl[i+j*n];
         }
     }
 
@@ -174,12 +214,83 @@ void Poisson2D::defect(double *v, double *f, double* dl) {
 
 }
 
-void Poisson2D::restriction(double *v, double *f) {
+void Poisson2D::restriction(int l, int nu, double *dl, double *rdl) {
+    /*
+     * restriction calculation.
+     *
+     *      dl-1 = r dl
+     *
+     * determines solution on l-1 level.
+     */
+    if (DBG) printf("\nPoisson2D::restriction()\n");
+    
+    double up, down, right, left, onsite;
+    int n=pow(2,l); //n-elements;
+    int m=pow(2,l); //m-elements;
+    int step=pow(2,nu);
+
+    for(int j=step; j<(m-1); j+=step) { // interior restrict points on l-1 level
+        for(int i=step; i<(n-1); i+=step) {
+            up          =dl[i + (j+1)*n]; // Ll ul - fl operation
+            down        =dl[i + (j-1)*n];
+            right       =dl[(i+1) + j*n];
+            left        =dl[(i-1) + j*n];
+            onsite      =dl[i + j*n];
+            rdl[i + j*n] =0.125*(right + left + up + down) + 0.5*onsite;
+        }
+    }
+
 }
 
-void Poisson2D::prolongation(double *v, double *f) {
-}
+void Poisson2D::prolongation(int l, int nu, double *rdl, double *dl, double* vtmp) {
+    /*
+     * restriction calculation.
+     *
+     *       \bar{u}l = pLl-1^-1[r dl]
+     *
+     * interpolates solution for the l'th level
+     */
+    if (DBG) printf("\nPoisson2D::restriction()\n");
+    int n=pow(2,l); //n-elements;
+    int m=pow(2,l); //m-elements;
+    int step=pow(2,nu+1);
 
+    // interpolation scheme
+    for(int j=step; j<(m-1); j+=step) { // interior points on l-1 level
+        for(int i=step; i<(n-1); i+=step) {
+            dl[i + j*n] = rdl[i + j*n];
+        }
+    }
+
+    // interpolate even numbered columns
+    // and vertically odd rows.
+    for(int j=1; j<(m-1); j+=step) {
+        for(int i=0; i<(n-1); i+=step) {
+            dl[i + j*n] = 0.5*(rdl[i + (j+1)*n] + rdl[i + (j-1)*n]);
+        }
+    }
+
+    // interpolate odd numbered columns
+    // and each row, interpolating horizontally.
+    for(int j=0; j<(m-1); j+=1) {
+        for(int i=1; i<(n-1); i+=step) {
+            dl[i + j*n] = 0.5*(rdl[(i+1) + j*n] + rdl[(i-1) + j*n]);
+        }
+    }
+
+    // add correction
+    // ul^j+1 = ul^j - pvl-1
+    double trace = 0;
+    double traceold = 0;
+    double vh;
+    for(int j=1; j<(m-1); j+=1) {
+        for(int i=1; i<(n-1); i+=1) {
+            // u correction
+            utmp[i + j*n]=vtmp[i + j*n] - dl[i + j*n];
+        }
+    }
+
+}
 
 void Poisson2D::writematrix2file(std::string filename, std::string mode) {
     /* 
@@ -210,6 +321,24 @@ void Poisson2D::writematrix2file(std::string filename, std::string mode) {
             outfile << "\n";
         }
     }
+    else if (mode=="potentialtmp") {
+        outfile.open(filename, std::fstream::out);
+        outfile << left << setw(12) << "# x";
+        outfile << left << setw(12) << "y";
+        outfile << left << setw(12) << "f(x,y)";
+        outfile << left << "error" << "\n";
+        outfile << std::scientific;
+        outfile.precision(4);
+        for(int j=0; j<m; j++) {
+            for(int i=0; i<n; i++) {
+                outfile << left << setw(12) << i;
+                outfile << left << setw(12) << j;
+                outfile << left << setw(12) << utmp[i + j*n] << "\n";
+                outfile << left << errortmp << "\n";
+            }
+            outfile << "\n";
+        }
+    }
     else if (mode=="charge") {
         outfile.open(filename, std::fstream::out);
         outfile << left << setw(12) << "# x";
@@ -225,6 +354,30 @@ void Poisson2D::writematrix2file(std::string filename, std::string mode) {
             }
             outfile << "\n";
         }
+    }
+
+}
+
+// EXTRA STUFF
+
+
+void Poisson2D::copy(int l, double* u, double* utmp) {
+    int n=pow(2,l); //nelem;
+    int m=pow(2,l); //melem;
+
+    // internal points
+    for(int j=1; j<(m-1); j++) {
+        for(int i=1; i<(n-1); i++) {
+            utmp[i + j*n] = u[i + j*n];
+        }
+    }
+
+    // boundary conditions
+    for(int i=0; i<n; i++) {
+        utmp[i + 0*n] = 0;      // bottom bound
+        utmp[0 + i*n] = 0;      // left bound
+        utmp[i + (n-1)*n] = 0;  // top bound
+        utmp[(n-1) + i*n] = 0;  // right bound
     }
 
 }

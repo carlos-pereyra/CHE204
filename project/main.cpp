@@ -28,8 +28,8 @@
 //          ./poisson
 //
 
-#define NELEM 71
-#define MELEM 71
+#define NELEM 64
+#define MELEM 64
 #define ITERATIONS 2000
 using namespace std;
 
@@ -43,29 +43,41 @@ int main(int argc, char** argv) {
      *   \nabla^2 u = p
      *
      */
-    double* u = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
-    double* p = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
-    double* dl= (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
+    double* u   = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
+    double* p   = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
+    
+    double* dl  = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
+    double* rdl = (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
+    
+    double* utmp= (double *) malloc(sizeof(double)*n*m);  //real(nxm) vector
 
     // --------- 2D POISSON SOLVER OPERATIONS ---------
     Poisson2D* ps2d = new Poisson2D(n,m, u,p);
+    int l=log2(n);
+    int nu=0;
 
     for(int index=0; index<v; index++) {
         // jacobi method
-        ps2d->smooth(u,p);
+        ps2d->smooth(l,nu, u,p);
+        ps2d->copy(l, u,utmp);
 
-        // multigrids
-        ps2d->defect(u,p,dl);
-
+        // coarse-grid correction
+        for(int s=0; s<2; s++) {
+            ps2d->defect(l-s,nu+s, utmp,p,dl);          // risidual on l'th level
+            ps2d->restriction(l-1-s,nu+1+s, dl,rdl);    // l'th level -> l'th-1 level
+            ps2d->prolongation(l-s,nu+s, rdl,dl,utmp);  // l'th-1 level -> l'th level
+        }
         // output
+        std::string filenameutmp = "data/tmp" + to_string(index) + ".dat";
         std::string filenameu = "data/potential" + to_string(index) + ".dat";
         std::string filenamep = "data/charge" + to_string(index) + ".dat";
+        ps2d->writematrix2file(filenameutmp,"potentialtmp");
         ps2d->writematrix2file(filenameu,"potential");
         ps2d->writematrix2file(filenamep,"charge");
 
         // error residual
-        printf("iteration= %d error= %lf\n", index, ps2d->error);
-        if(ps2d->error<1e-3) {
+        printf("l=%d nu=%d iteration=%d error= %lf errortmp=%lf\n",l, nu, index, ps2d->error, ps2d->errortmp);
+        if(ps2d->errortmp<1e-4) {
             break;
         }
     }
@@ -73,5 +85,7 @@ int main(int argc, char** argv) {
     free(u);
     free(p);
     free(dl);
+    free(rdl);
+    free(utmp);
     delete ps2d;
 }
