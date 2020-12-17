@@ -16,8 +16,12 @@
 #
 #   /bin/bash jobs
 #
-set terminal epslatex size 5.5, 5.5 standalone color colortext 10 header "\\newcommand{\\ft}[0]{\\huge}"
-set out 'chargeplot.tex'
+#set terminal epslatex size 5.5, 5.5 standalone color colortext 10 header "\\newcommand{\\ft}[0]{\\huge}"
+#set out 'chargeplot.tex'
+# GIF
+set terminal gif
+set output 'charge.gif'
+
 
 # LEGEND OPTIONS
 #set key right top
@@ -43,18 +47,25 @@ set mytics 5
 set mxtics 5
 
 # HEAT MAP
-set pm3d map
+#set pm3d map
+set pm3d at b
+#set pm3d
 
 # CONTOUR
-#set contour base
-#set cntrparam levels 21
-#set cntrparam levels incremental -100,10
+#unset clabel
+#set contour
 #set view map
 #unset surface
-#set contour
+#set cntrparam levels 11
+#set contour base
 
 # SHOW
-splot "../data/charge0.dat" u 1:2:3 title ''
+splot "../data/charge0.dat" u 1:2:3 title '' with dots
+#splot "../data/pot200.dat" u 1:2:3 title '' with lines lw 2 lc rgb "dark-blue" 
+
+#splot "../data/charge0.dat" u 1:2:3 title '' , \
+#      "../data/pot200.dat" u 1:2:3 title '' with lines lw 2 lc rgb "white" 
+
 #unset view
 #unset pm3d
 
