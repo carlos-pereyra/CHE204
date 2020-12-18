@@ -20,7 +20,7 @@
 
 # ANIMATION
 set terminal gif animate delay 2
-set output 'foo.gif'
+set output 'tmp.gif'
 
 # LEGEND OPTIONS
 #set key right top
@@ -36,7 +36,7 @@ set style line 4 lw 4 lt 2 lc 0
 
 # PLOT STYLES
 set size square
-#set title 'potential, $u(x,y)$'
+set title 'potential, gamma=2'
 #set grid
 #set xlabel '\large $x$'
 #set ylabel '\large $y$'
@@ -70,6 +70,6 @@ set pm3d at b
 #set zrange [0:0.016];
 #set cbrange [0:0.016]
 do for [i=1:327] {
-    splot sprintf('../data/pot%d.dat', i) using 1:2:3 title sprintf('time = %d', i) with dots
+    splot sprintf('../data/pottmp%d.dat', i) using 1:2:3 title sprintf('iteration = %d', i) with dots
 }
 

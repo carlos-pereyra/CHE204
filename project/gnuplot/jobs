@@ -8,6 +8,11 @@
 
 ## ANIMATION
 gnuplot -p plotanimation.gp
+gnuplot -p plotanimationtmp.gp
+
+## ERROR PLOT
+gnuplot -p ploterror.gp
+#gnuplot -p ploterrortmp.gp
 
 #echo All done
 #convert -density 400 -loop 0 potential*.ps output.gif

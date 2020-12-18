@@ -20,7 +20,7 @@
 
 # ANIMATION
 set terminal gif animate delay 2
-set output 'foo.gif'
+set output 'error_tmp.gif'
 
 # LEGEND OPTIONS
 #set key right top
@@ -45,6 +45,9 @@ set ylabel 'Y'
 set mytics 5
 #set xtics 0 0.01
 set mxtics 5
+set xrange [0:770]
+set yrange [1e-4:3]
+set logscale y
 
 # HEAT MAP
 #set pm3d map
@@ -58,18 +61,15 @@ set pm3d at b
 #unset surface
 #set contour
 
-# SHOW
-#set out 'fig0.tex'
-#splot "../data/potential0.dat" u 1:2:3 title ''
-
-#set out 'fig1.tex'
-#splot "../data/potential1.dat" u 1:2:3 title ''
-#do for [i=0:200] { set out sprintf('fig%d.tex', i); splot sprintf('../data/potential%d.dat', i) using 1:2:3 title sprintf('time = %d', i) with lines}
-#do for [i=0:200] { set out sprintf('fig%d.tex', i); splot sprintf('../data/potential%d.dat', i) using 1:2:3 title sprintf('time = %d', i) with lines}
-
 #set zrange [0:0.016];
 #set cbrange [0:0.016]
+filename(n) = sprintf('../data/errtmp%d.dat', n)
+
+# UNSETS
+unset key
+
+# GENERATE ANIMATION
 do for [i=1:327] {
-    splot sprintf('../data/pot%d.dat', i) using 1:2:3 title sprintf('time = %d', i) with dots
+    plot for [j=1:i] filename(j) using 1:2 with linespoints linestyle 1
 }
 
