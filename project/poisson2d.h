@@ -1,15 +1,13 @@
 #ifndef POISSON2D_H
 #define POISSON2D_H
 
-//namespace PARTICLE_DYNAMICS_NS {
-
 class Poisson2D {
     public:
         Poisson2D(int n, int m, double*, double*);
         ~Poisson2D();
-        void init(double*, double*);                            // compose matrices
+        void init(double*, double*);                            // initialize grids
         
-        void smooth(int, int, double*, double*);                // finite difference operator
+        void smooth(int, int, double*, double*, std::string);   // finite difference operator
         void defect(int, int, double*, double*, double*);       // defect operator
         void restriction(int, int, double*, double*);           // restriction operator
         void prolongation(int, int, double*, double*, double*); // prolongation operator
@@ -31,7 +29,5 @@ class Poisson2D {
         int nelem, melem;
         double dx, dy, dx2, dy2;
 };
-
-//}
 
 #endif

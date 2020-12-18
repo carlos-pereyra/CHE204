@@ -55,18 +55,21 @@ int main(int argc, char** argv) {
     Poisson2D* ps2d = new Poisson2D(n,m, u,p);
     int l=log2(n);
     int nu=0;
+    
+    ps2d->copy(l, u,utmp); // duplicate u
 
     for(int index=0; index<v; index++) {
         // jacobi method
-        ps2d->smooth(l,nu, u,p);
-        ps2d->copy(l, u,utmp);
+        ps2d->smooth(l,nu, u,p,"relax");
+        ps2d->smooth(l,nu, utmp,p,"cgc");
 
         // coarse-grid correction
-        for(int s=0; s<2; s++) {
-            ps2d->defect(l-s,nu+s, utmp,p,dl);          // risidual on l'th level
-            ps2d->restriction(l-1-s,nu+1+s, dl,rdl);    // l'th level -> l'th-1 level
-            ps2d->prolongation(l-s,nu+s, rdl,dl,utmp);  // l'th-1 level -> l'th level
-        }
+        ps2d->defect(l,nu, utmp,p,dl);          // risidual on l'th level
+        ps2d->restriction(l-1,nu+1, dl,rdl);    // l'th level -> l'th-1 level
+        ps2d->prolongation(l,nu, rdl,dl,utmp);  // l'th-1 level -> l'th level
+        
+        ps2d->smooth(l,nu, utmp,p,"cgc");
+        
         // output
         std::string filename_utmp   = "data/pottmp" + to_string(index) + ".dat";
         std::string filename_u      = "data/pot" + to_string(index) + ".dat";
@@ -82,7 +85,8 @@ int main(int argc, char** argv) {
 
         // error residual
         printf("l=%d nu=%d iteration=%d error= %lf errortmp=%lf\n",l, nu, index, ps2d->error, ps2d->errortmp);
-        if(ps2d->errortmp<1e-4) {
+        //if(ps2d->errortmp<1e-4) {
+        if(ps2d->error<1e-4) {
             break;
         }
     }

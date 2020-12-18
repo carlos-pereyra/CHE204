@@ -13,6 +13,7 @@
 #define LENGTHB 1       // BAR LENGTH
 #define LENGTHX 3       // X DIRECTION LENGTH
 #define LENGTHY 3       // Y DIRECTION LENGTH
+#define RPOINTS 0       // RANDOM POINTS
 #define ranfloat(w) ( w * ((rand() / (double) RAND_MAX)) ) // RANDOM NUMBER FROM 0 TO W
 
 using namespace std;
@@ -88,11 +89,14 @@ void Poisson2D::init(double* phi, double* rho) {
     }
 
     // +charged particle conditions
-    for(int k=0; k<6; k++) {
-            int i = ceil(ranfloat(nelem));
-            int j = ceil(ranfloat(nelem));
-            rho[i + j*nelem] = p[i + j*nelem] = 1;
-    }
+    //if(RPOINTS) {
+    //uncomment if you want random points on the domain
+    /*for(int k=0; k<6; k++) {
+        int i = ceil(ranfloat(nelem));
+        int j = ceil(ranfloat(nelem));
+        rho[i + j*nelem] = p[i + j*nelem] = 1;
+    }*/
+    //}
 
     // finite difference
     dx   = LENGTHX * 1 / (double) nelem;
@@ -100,9 +104,12 @@ void Poisson2D::init(double* phi, double* rho) {
     dx2  = pow(dx, 2);
     dy2  = pow(dy, 2);
 
+    // errors
+    error    = -1;
+    errortmp = -1;
 }
 
-void Poisson2D::smooth(int l, int nu, double *v, double *f) {
+void Poisson2D::smooth(int l, int nu, double *v, double *f, std::string mode) {
     /* 
      * jacobi relaxation smoothy algorithm. iteratively solve \nabla^2 u = f
      * assumptions: (1) v, f are square lattices with 2^l+1 elements on each dimension
@@ -130,56 +137,58 @@ void Poisson2D::smooth(int l, int nu, double *v, double *f) {
 
     double trace = 0;
     double traceold = 0;
-    
-    for(int j=step; j<(m-1); j+=step) {
-        for(int i=step; i<(n-1); i+=step) {
-            // laplacian finite difference
-            up          =v[i + (j+1)*n];
-            down        =v[i + (j-1)*n];
-            right       =v[(i+1) + j*n];
-            left        =v[(i-1) + j*n];
-            // u^n
-            u[i + j*n]  =v[i + j*n];
-            // u^n+1
-            v[i + j*n]  =0.5*( dx2*(up + down)/(dx2 + dy2) + 
+   
+    if(mode=="relax") { 
+        for(int j=step; j<(m-1); j+=step) {
+            for(int i=step; i<(n-1); i+=step) {
+                // laplacian finite difference
+                up          =v[i + (j+1)*n];
+                down        =v[i + (j-1)*n];
+                right       =v[(i+1) + j*n];
+                left        =v[(i-1) + j*n];
+                // u^n
+                u[i + j*n]  =v[i + j*n];
+                // u^n+1
+                v[i + j*n]  =0.5*( dx2*(up + down)/(dx2 + dy2) + 
+                                     dy2*(right + left)/(dx2 + dy2) +
+                                     dx2*dy2*f[i + j*n]/(dx2 + dy2) );
+                // error
+                if(i==j) {
+                    trace    +=v[i + j*n];      // new trace
+                    traceold +=u[i + j*n];      // old trace
+                }
+
+            }
+        }
+        error = (pow(trace,2) - pow(traceold,2)) / pow(traceold,2);
+    }
+    else if(mode=="cgc") { 
+        for(int j=step; j<(m-1); j+=step) {
+            for(int i=step; i<(n-1); i+=step) {
+                // laplacian finite difference
+                up          =v[i + (j+1)*n];
+                down        =v[i + (j-1)*n];
+                right       =v[(i+1) + j*n];
+                left        =v[(i-1) + j*n];
+                // u^n
+                utmp[i + j*n]  =v[i + j*n];
+                // u^n+1
+                v[i + j*n]=0.5*( dx2*(up + down)/(dx2 + dy2) + 
                                  dy2*(right + left)/(dx2 + dy2) +
                                  dx2*dy2*f[i + j*n]/(dx2 + dy2) );
-            // error
-            if(i==j) {
-                trace    +=v[i + j*n];      // new trace
-                traceold +=u[i + j*n];      // old trace
-            }
+                // error
+                if(i==j) {
+                    trace    +=v[i + j*n];   // new trace
+                    traceold +=utmp[i + j*n];// old trace
+                }
 
-        }
-    }
-    error = (pow(trace,2) - pow(traceold,2)) / pow(traceold,2);
-   
-    double val; 
-    trace = 0;
-    traceold = 0;
-    for(int j=step; j<(m-1); j+=step) {
-        for(int i=step; i<(n-1); i+=step) {
-            // laplacian finite difference
-            up          =utmp[i + (j+1)*n];
-            down        =utmp[i + (j-1)*n];
-            right       =utmp[(i+1) + j*n];
-            left        =utmp[(i-1) + j*n];
-            // u^n
-            val         =utmp[i + j*n];
-            // u^n+1
-            utmp[i + j*n]=0.5*( dx2*(up + down)/(dx2 + dy2) + 
-                                dy2*(right + left)/(dx2 + dy2) +
-                                dx2*dy2*f[i + j*n]/(dx2 + dy2) );
-            // error
-            if(i==j) {
-                trace    +=utmp[i + j*n];   // new trace
-                traceold +=val;             // old trace
             }
-
         }
+        errortmp = (pow(trace,2) - pow(traceold,2)) / pow(traceold,2);
+    } else {
+        printf("not a valid mode (smooth)\n");
+        exit(1);
     }
-    errortmp = (pow(trace,2) - pow(traceold,2)) / pow(traceold,2);
-    
     if(DBG) printf("error = %lf\n", error);
 }
 
