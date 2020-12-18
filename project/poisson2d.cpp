@@ -91,7 +91,6 @@ void Poisson2D::init(double* phi, double* rho) {
     for(int k=0; k<6; k++) {
             int i = ceil(ranfloat(nelem));
             int j = ceil(ranfloat(nelem));
-            printf("I WON!");
             rho[i + j*nelem] = p[i + j*nelem] = 1;
     }
 
