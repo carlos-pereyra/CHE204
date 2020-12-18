@@ -13,20 +13,12 @@
 
 // compile this code with,
 //
-//      g++ -Xpreprocessor -fopenmp -lomp -o test main.cpp
-//
-//      ./test
-//
-//      for extra juiciness use MPI - currently does not work :(
-//      
-//      mpicxx main.cpp -o test
-//
-//      mpirun -n 2 ./test
-//  
 //      usage:
 //          make
 //          ./poisson
 //
+//      files:
+//          mkdir data
 
 #define NELEM 64
 #define MELEM 64
