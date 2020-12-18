@@ -13,6 +13,7 @@
 #define LENGTHB 1       // BAR LENGTH
 #define LENGTHX 3       // X DIRECTION LENGTH
 #define LENGTHY 3       // Y DIRECTION LENGTH
+#define ranfloat(w) ( w * ((rand() / (double) RAND_MAX)) ) // RANDOM NUMBER FROM 0 TO W
 
 using namespace std;
 
@@ -65,7 +66,9 @@ void Poisson2D::init(double* phi, double* rho) {
         }
     }
 
-    // fill p (charge density) with initial boundary conditions
+    // initial values
+    
+    // +charged bar conditions
     int N1 = ceil(0.5*melem*(1 - LENGTHB / (double) LENGTHY));
     int N2 = ceil(1.0*melem*(LENGTHB / (double) LENGTHY));
     for(int j=0; j<melem; j++) {
@@ -82,6 +85,14 @@ void Poisson2D::init(double* phi, double* rho) {
             }
 
         }
+    }
+
+    // +charged particle conditions
+    for(int k=0; k<6; k++) {
+            int i = ceil(ranfloat(nelem));
+            int j = ceil(ranfloat(nelem));
+            printf("I WON!");
+            rho[i + j*nelem] = p[i + j*nelem] = 1;
     }
 
     // finite difference
@@ -313,8 +324,8 @@ void Poisson2D::writematrix2file(std::string filename, std::string mode) {
         outfile.precision(4);
         for(int j=1; j<(m-1); j++) {
             for(int i=1; i<(n-1); i++) {
-                outfile << left << setw(12) << i;
-                outfile << left << setw(12) << j;
+                outfile << left << setw(12) << i*dx;
+                outfile << left << setw(12) << j*dy;
                 outfile << left << u[i + j*n] << "\n";
                 //outfile << left << error << "\n";
             }
@@ -331,8 +342,8 @@ void Poisson2D::writematrix2file(std::string filename, std::string mode) {
         outfile.precision(4);
         for(int j=0; j<m; j++) {
             for(int i=0; i<n; i++) {
-                outfile << left << setw(12) << i;
-                outfile << left << setw(12) << j;
+                outfile << left << setw(12) << i*dx;
+                outfile << left << setw(12) << j*dy;
                 outfile << left << utmp[i + j*n] << "\n";
                 //outfile << left << errortmp << "\n";
             }
@@ -366,8 +377,8 @@ void Poisson2D::writematrix2file(std::string filename, std::string mode) {
         outfile.precision(4);
         for(int j=0; j<m; j++) {
             for(int i=0; i<n; i++) {
-                outfile << left << setw(12) << i;
-                outfile << left << setw(12) << j;
+                outfile << left << setw(12) << i*dx;
+                outfile << left << setw(12) << j*dy;
                 outfile << left << p[i + j*n] << "\n";
             }
             outfile << "\n";
